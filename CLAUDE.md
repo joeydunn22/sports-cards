@@ -168,6 +168,9 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - **Phase 2: Photos.** Private Supabase Storage bucket. Front and back images per card, compressed on the client to WebP (max about 1600px, about 150 KB) with a thumbnail. Photos are taken with the phone camera via `<input capture>`. Add `front_image_path` and `back_image_path` columns through a migration.
 - **Phase 3: Valuation.** A value dashboard (total, by sport and by player, top cards). Then evaluate a pricing source (SportsCardsPro/PriceCharting API is the leading candidate; eBay sold-comps data is restricted). Calls go through a Supabase Edge Function, and value history goes in a `price_history` table.
 - **Phase 4: eBay listing.** Connect eBay through OAuth via an Edge Function, using the eBay Sell Inventory API. Create a listing from a card, prefilling the title from the card's fields and attaching its photos. Track the listing status on the card (add status columns at that point).
+- **Ideas to explore soon** (I'll bring these up; not decided yet):
+  - **No login screen.** Use the app without typing a password while keeping the data private. Options to weigh: passkeys (Face ID), a long-lived remembered session, or a device-bound sign-in. The data must stay private either way, and the site is public.
+  - **Card data from photos.** Take a photo of the front and back, and have the app fill in player, year, set, card number, parallel, serial and so on for me to confirm. This likely means a vision-capable AI model called from a Supabase Edge Function, and it fits naturally with Phase 2 photos.
 - **Later ideas:** tracking fields (storage location, tags, notes, want list), bulk edit, duplicate detection, OCR-assisted entry from a photo.
 
 ## Working conventions for Claude
