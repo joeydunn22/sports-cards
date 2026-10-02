@@ -18,7 +18,7 @@ A private, mobile-first progressive web app (PWA) for cataloging my sports card 
 - **Routing:** React Router with `HashRouter` (GitHub Pages has no SPA fallback)
 - **Forms/validation:** React Hook Form + Zod
 - **PWA:** `vite-plugin-pwa` (manifest, service worker, installable on iOS and Android)
-- **Backend:** Supabase: Postgres, Auth (email one-time code; not magic links, which break in installed iOS PWAs), Storage (photos, phase 2), Edge Functions (eBay and pricing, phases 3–4)
+- **Backend:** Supabase: Postgres, Auth (email + password; no emails are sent, so no SMTP setup is needed), Storage (photos, phase 2), Edge Functions (eBay and pricing, phases 3–4)
 - **Hosting:** GitHub Pages from the repo `sports-cards`, deployed by a GitHub Actions workflow on push to `main`. Vite `base` is `/sports-cards/`.
 - **Linting:** oxlint
 - **Tests:** Vitest + React Testing Library
@@ -133,7 +133,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - Edits are optimistic through TanStack Query, and deletes need a confirmation.
 
 ## Roadmap
-- **Phase 0: Setup.** Git repo, Vite scaffold, Tailwind, oxlint, Supabase project plus the first migration with RLS, email-code login (sign-ups disabled after my account exists), the GitHub Pages deploy workflow, and the Supabase keep-alive workflow.
+- **Phase 0: Setup.** Git repo, Vite scaffold, Tailwind, oxlint, Supabase project plus the first migration with RLS, email + password login (account created in the dashboard, sign-ups disabled), the GitHub Pages deploy workflow, and the Supabase keep-alive workflow.
 - **Phase 1: MVP.** Card CRUD, quick-add form, list with search/sort/filter, CSV export and import (export doubles as a backup), PWA install, and a collection summary (count, plus total estimated value where one is entered).
 - **Phase 2: Photos.** Private Supabase Storage bucket. Front and back images per card, compressed on the client to WebP (max about 1600px, about 150 KB) with a thumbnail. Photos are taken with the phone camera via `<input capture>`. Add `front_image_path` and `back_image_path` columns through a migration.
 - **Phase 3: Valuation.** A value dashboard (total, by sport and by player, top cards). Then evaluate a pricing source (SportsCardsPro/PriceCharting API is the leading candidate; eBay sold-comps data is restricted). Calls go through a Supabase Edge Function, and value history goes in a `price_history` table.

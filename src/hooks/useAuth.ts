@@ -8,17 +8,9 @@ export function useAuth() {
   return auth
 }
 
-/** Emails a one-time code. Never creates accounts: sign-ups are disabled for this single-user app. */
-export async function sendLoginCode(email: string) {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
-  })
-  if (error) throw error
-}
-
-export async function verifyLoginCode(email: string, code: string) {
-  const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
+/** Sign-ups are disabled in Supabase; the single account is created from the dashboard. */
+export async function signIn(email: string, password: string) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) throw error
 }
 
