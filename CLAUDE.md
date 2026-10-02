@@ -144,6 +144,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - Stay inside this project folder. Sibling folders, such as other projects in the same parent directory, are unrelated: don't read, search or edit them.
 - The schema changes only through new files in `supabase/migrations/`. Never edit an applied migration. Regenerate types after every schema change.
 - Keep components small. Data access goes in `hooks/`, never directly in components.
-- Don't add libraries beyond the stack above without asking.
+- Don't add libraries beyond the stack above, or install new software on my machine, without asking.
+- Code work that builds toward the roadmap never needs my sign-off. Build it, and I'll ask for changes as I review.
 - Each phase ends with: `npm run build` and `npm run test` passing, a manual check on a phone-sized viewport, and a check that RLS blocks access without a session.
 - Ask before taking outward-facing actions: creating repos, pushing, or deploying.
