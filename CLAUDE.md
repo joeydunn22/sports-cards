@@ -54,7 +54,7 @@ supabase/
 ```
 
 ## Data model: `cards` table
-Card attributes live as columns on `cards`. Do **not** create separate set or player tables in v1. Autocomplete comes from `select distinct` over existing values.
+Card attributes live as columns on `cards`. Do **not** create separate set or player tables in v1. The whole collection is loaded once (`useCards`, paged past Supabase's 1,000-row cap) and filtered, sorted and summarized on the client. Autocomplete is derived from those loaded cards (distinct values per field). Revisit if the collection grows past a few thousand cards.
 
 | Column | Type | Req | Notes |
 |---|---|---|---|
@@ -86,6 +86,8 @@ Card attributes live as columns on `cards`. Do **not** create separate set or pl
 | sold_price | numeric(10,2) | | optional |
 | sold_date | date | | optional |
 | created_at / updated_at | timestamptz | ✓ | `updated_at` maintained by a trigger |
+
+**Sold cards:** a card counts as sold when `sold_date` or `sold_price` is set. Sold cards are hidden from the default list ("Owned" filter) and excluded from collection totals.
 
 **Display convention:** a serial number shows as `23/99`. Show `print_run` alone as `/99` when the exact number is unknown.
 
@@ -134,7 +136,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 
 ## Roadmap
 - **Phase 0: Setup.** Git repo, Vite scaffold, Tailwind, oxlint, Supabase project plus the first migration with RLS, email + password login (account created in the dashboard, sign-ups disabled), the GitHub Pages deploy workflow, and the Supabase keep-alive workflow.
-- **Phase 1: MVP.** Card CRUD, quick-add form, list with search/sort/filter, CSV export and import (export doubles as a backup), PWA install, and a collection summary (count, plus total estimated value where one is entered).
+- **Phase 1: MVP (built).** Card CRUD, quick-add form, list with search/sort/filter, CSV export and import (export doubles as a backup), PWA install, and a collection summary (count, plus total estimated value where one is entered).
 - **Phase 2: Photos.** Private Supabase Storage bucket. Front and back images per card, compressed on the client to WebP (max about 1600px, about 150 KB) with a thumbnail. Photos are taken with the phone camera via `<input capture>`. Add `front_image_path` and `back_image_path` columns through a migration.
 - **Phase 3: Valuation.** A value dashboard (total, by sport and by player, top cards). Then evaluate a pricing source (SportsCardsPro/PriceCharting API is the leading candidate; eBay sold-comps data is restricted). Calls go through a Supabase Edge Function, and value history goes in a `price_history` table.
 - **Phase 4: eBay listing.** Connect eBay through OAuth via an Edge Function, using the eBay Sell Inventory API. Create a listing from a card, prefilling the title from the card's fields and attaching its photos. Track the listing status on the card (add status columns at that point).
@@ -144,7 +146,9 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - Stay inside this project folder. Sibling folders, such as other projects in the same parent directory, are unrelated: don't read, search or edit them.
 - The schema changes only through new files in `supabase/migrations/`. Never edit an applied migration. Regenerate types after every schema change.
 - Keep components small. Data access goes in `hooks/`, never directly in components.
+- File names in one folder must differ by more than letter case (e.g. not `cardForm.ts` next to `CardForm.tsx`): Windows treats them as the same file. Pure logic uses descriptive names like `cardSchema.ts`.
+- Pure logic (validation, filtering, CSV, titles) lives in plain `.ts` modules with unit tests; components stay thin.
 - Don't add libraries beyond the stack above, or install new software on my machine, without asking.
 - Code work that builds toward the roadmap never needs my sign-off. Build it, and I'll ask for changes as I review.
 - Each phase ends with: `npm run build` and `npm run test` passing, a manual check on a phone-sized viewport, and a check that RLS blocks access without a session.
-- Ask before taking outward-facing actions: creating repos, pushing, or deploying.
+- Commit and push to `main` (which deploys) as work completes; no need to ask. Ask only for important or hard-to-reverse actions: destructive data changes, schema changes that drop data, new services or accounts, installing software.
