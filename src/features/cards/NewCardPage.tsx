@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
+import { PageHeader } from '../../components/PageHeader'
 import { NO_CARDS, useCards, useCreateCard } from '../../hooks/useCards'
 import { CardForm } from './CardForm'
 import { emptyCardForm, toCardInput, type CardFormValues } from './cardSchema'
@@ -21,13 +22,8 @@ export function NewCardPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Add card</h1>
-        <Link to="/" className="flex min-h-11 items-center text-sm text-slate-400 hover:text-slate-100">
-          Done
-        </Link>
-      </div>
+    <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] md:pt-4">
+      <PageHeader title="Add card" backTo="/" backLabel="Collection" />
       <CardForm mode="new" initialValues={initialValues} suggestions={suggestions} onSubmit={handleSubmit} />
     </main>
   )

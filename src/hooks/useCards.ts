@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { demoCards, IS_DEMO } from '../dev/demo'
 import { supabase } from '../lib/supabase'
 import type { Card, CardInput } from '../types/card'
 
@@ -25,7 +26,11 @@ async function fetchAllCards(): Promise<Card[]> {
 
 /** The whole collection, loaded once and filtered/sorted on the client (fine for a few thousand cards). */
 export function useCards() {
-  return useQuery({ queryKey: CARDS_KEY, queryFn: fetchAllCards, staleTime: 60_000 })
+  return useQuery({
+    queryKey: CARDS_KEY,
+    queryFn: IS_DEMO ? async () => demoCards : fetchAllCards,
+    staleTime: 60_000,
+  })
 }
 
 export function useCreateCard() {

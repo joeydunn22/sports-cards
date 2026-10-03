@@ -1,5 +1,7 @@
 import { useState, type ChangeEvent } from 'react'
 import { Link } from 'react-router'
+import { Icon } from '../../components/Icon'
+import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
 import { NO_CARDS, useCards, useImportCards } from '../../hooks/useCards'
 import { downloadFile } from '../../lib/csv'
 import { cardsToCsv, csvTemplate, parseCardsCsv, type ImportResult } from './cardCsv'
@@ -10,7 +12,8 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function ImportExportPage() {
+/** Export/import panels, shown on the More page. */
+export function ImportExportSections() {
   const { data } = useCards()
   const cards = data ?? NO_CARDS
   const importCards = useImportCards()
@@ -30,9 +33,9 @@ export function ImportExportPage() {
   const inserts = (result?.rows.length ?? 0) - updates
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-6">
-      <section className="flex flex-col gap-3">
-        <h1 className="text-xl font-semibold">Export</h1>
+    <>
+      <section className={`${panel} flex flex-col gap-3 p-4`}>
+        <h2 className="text-lg font-semibold">Export</h2>
         <p className="text-sm text-slate-400">
           Download every card (including sold ones) as a CSV. It opens in Excel or Google Sheets and doubles as a
           backup.
@@ -41,14 +44,14 @@ export function ImportExportPage() {
           type="button"
           disabled={cards.length === 0}
           onClick={() => downloadFile(`sports-cards-${today()}.csv`, cardsToCsv(cards))}
-          className="min-h-11 self-start rounded-lg bg-sky-500 px-4 font-medium text-slate-950 disabled:opacity-50"
+          className={`${buttonPrimary} self-start`}
         >
-          Download CSV ({cards.length} {cards.length === 1 ? 'card' : 'cards'})
+          <Icon name="download" size={18} /> Download CSV ({cards.length} {cards.length === 1 ? 'card' : 'cards'})
         </button>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold">Import</h2>
+      <section className={`${panel} flex flex-col gap-3 p-4`}>
+        <h2 className="text-lg font-semibold">Import</h2>
         <div className="text-sm text-slate-400">
           <p>Add cards in bulk from a spreadsheet saved as CSV.</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
@@ -71,13 +74,13 @@ export function ImportExportPage() {
         >
           Download blank template
         </button>
-        <label className="flex min-h-11 cursor-pointer items-center self-start rounded-lg border border-slate-700 px-4 font-medium hover:border-slate-500">
-          Choose CSV file…
+        <label className={`${buttonSecondary} cursor-pointer self-start`}>
+          <Icon name="upload" size={18} /> Choose CSV file…
           <input type="file" accept=".csv,text/csv" onChange={handleFile} className="sr-only" />
         </label>
 
         {result && (
-          <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+          <div className="flex flex-col gap-3 rounded-xl bg-slate-950/60 p-4">
             <p className="text-sm text-slate-400">{fileName}</p>
             {result.fatal ? (
               <p className="text-red-400">{result.fatal}</p>
@@ -117,7 +120,7 @@ export function ImportExportPage() {
                     type="button"
                     disabled={result.rows.length === 0 || importCards.isPending}
                     onClick={() => importCards.mutate(result.rows)}
-                    className="min-h-11 self-start rounded-lg bg-sky-500 px-4 font-medium text-slate-950 disabled:opacity-50"
+                    className={`${buttonPrimary} self-start`}
                   >
                     {importCards.isPending ? 'Importing…' : `Import ${result.rows.length} cards`}
                   </button>
@@ -128,6 +131,6 @@ export function ImportExportPage() {
           </div>
         )}
       </section>
-    </main>
+    </>
   )
 }

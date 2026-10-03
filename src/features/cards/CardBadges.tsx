@@ -1,11 +1,13 @@
 import { formatSerial } from '../../lib/format'
 import type { Card } from '../../types/card'
 
-const badge = 'rounded px-1.5 py-0.5 text-[11px] font-semibold leading-none'
+const badge = 'rounded-md px-1.5 py-1 text-[11px] font-bold leading-none tracking-wide'
 
 export function CardBadges({ card }: { card: Card }) {
   const serial = formatSerial(card.serial_number, card.print_run)
   const grade = card.is_graded ? [card.grade_company, card.grade].filter(Boolean).join(' ') || 'Graded' : ''
+  const any = card.is_rookie || card.is_auto || card.is_patch || card.is_relic || serial || grade
+  if (!any) return null
   return (
     <span className="flex flex-wrap gap-1">
       {card.is_rookie && <span className={`${badge} bg-emerald-900 text-emerald-200`}>RC</span>}

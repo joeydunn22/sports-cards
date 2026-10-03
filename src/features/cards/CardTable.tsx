@@ -1,13 +1,14 @@
 import { Link, useNavigate } from 'react-router'
 import { formatMoney } from '../../lib/format'
 import { CardBadges } from './CardBadges'
+import { CardThumb } from './CardThumb'
 import type { CardTableInstance } from './useCardTable'
 
 /** Desktop: sortable table; click a column header to sort, a row to edit. */
 export function CardTable({ table }: { table: CardTableInstance }) {
   const navigate = useNavigate()
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-800">
+    <div className="overflow-x-auto rounded-2xl border border-slate-800">
       <table className="w-full text-left text-sm">
         <thead className="bg-slate-900 text-slate-400">
           {table.getHeaderGroups().map((group) => (
@@ -39,7 +40,7 @@ export function CardTable({ table }: { table: CardTableInstance }) {
             <tr
               key={row.id}
               onClick={() => navigate(`/cards/${row.id}`)}
-              className="cursor-pointer border-t border-slate-800 hover:bg-slate-900"
+              className="cursor-pointer border-t border-slate-800 hover:bg-slate-900/80"
             >
               {row.getAllCells().map((cell) => (
                 <td key={cell.id} className="px-3 py-2 whitespace-nowrap">
@@ -62,24 +63,30 @@ export function CardList({ table }: { table: CardTableInstance }) {
         <li key={card.id}>
           <Link
             to={`/cards/${card.id}`}
-            className="flex min-h-16 gap-3 rounded-lg border border-slate-800 bg-slate-900/50 p-3 active:bg-slate-900"
+            className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-2.5 pr-3 active:bg-slate-800"
           >
+            <CardThumb card={card} />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">
+              <p className="truncate font-semibold">
                 {card.player}
-                {card.quantity > 1 && <span className="text-slate-400"> ×{card.quantity}</span>}
+                {card.quantity > 1 && <span className="font-normal text-slate-400"> ×{card.quantity}</span>}
               </p>
               <p className="truncate text-sm text-slate-400">
-                {[`${card.year} ${card.set_name}`, card.insert_name, card.parallel, `#${card.card_number}`]
-                  .filter(Boolean)
-                  .join(' · ')}
+                {card.year} {card.set_name} <span className="text-slate-500">#{card.card_number}</span>
               </p>
-              <div className="mt-1.5">
+              {(card.insert_name || card.parallel) && (
+                <p className="truncate text-sm text-slate-300">
+                  {[card.insert_name, card.parallel].filter(Boolean).join(' · ')}
+                </p>
+              )}
+              <div className="mt-1.5 empty:hidden">
                 <CardBadges card={card} />
               </div>
             </div>
             {card.estimated_value != null && (
-              <p className="shrink-0 text-sm text-slate-300">{formatMoney(card.estimated_value)}</p>
+              <p className="shrink-0 self-start pt-0.5 text-sm font-semibold tabular-nums text-emerald-300">
+                {formatMoney(card.estimated_value)}
+              </p>
             )}
           </Link>
         </li>

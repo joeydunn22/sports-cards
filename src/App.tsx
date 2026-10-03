@@ -6,7 +6,8 @@ import { RequireAuth } from './features/auth/RequireAuth'
 import { CollectionPage } from './features/cards/CollectionPage'
 import { EditCardPage } from './features/cards/EditCardPage'
 import { NewCardPage } from './features/cards/NewCardPage'
-import { ImportExportPage } from './features/import-export/ImportExportPage'
+import { MorePage } from './features/more/MorePage'
+import { ScanPage } from './features/scan/ScanPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -23,7 +24,9 @@ export default function App() {
                 <Route path="/" element={<CollectionPage />} />
                 <Route path="/cards/new" element={<NewCardPage />} />
                 <Route path="/cards/:id" element={<EditCardPage />} />
-                <Route path="/import-export" element={<ImportExportPage />} />
+                <Route path="/scan" element={<ScanPage />} />
+                <Route path="/more" element={<MorePage />} />
+                <Route path="/import-export" element={<Navigate to="/more" replace />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>
             </Routes>

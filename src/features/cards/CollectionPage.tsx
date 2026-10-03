@@ -2,6 +2,9 @@ import type { SortingState } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { inputClass } from '../../components/Field'
+import { Icon } from '../../components/Icon'
+import { PageHeader } from '../../components/PageHeader'
+import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
 import { NO_CARDS, useCards } from '../../hooks/useCards'
 import { useSessionState } from '../../hooks/useSessionState'
 import { formatMoney } from '../../lib/format'
@@ -25,59 +28,76 @@ export function CollectionPage() {
   const activeFilters = countActiveFilters(filters)
   const currentSort = sortKey(sorting)
 
-  if (isPending) return <p className="p-4 text-slate-400">Loading your collection…</p>
-  if (error) return <p className="p-4 text-red-400">Couldn’t load cards: {error.message}</p>
+  const addButton = (
+    <Link to="/cards/new" className={`${buttonPrimary} max-md:hidden`}>
+      <Icon name="plus" size={18} /> Add card
+    </Link>
+  )
+
+  if (isPending) return <CollectionSkeleton />
+  if (error) {
+    return (
+      <main className="mx-auto max-w-6xl px-4 pt-6">
+        <p className="rounded-xl bg-red-950/50 p-4 text-red-300">Couldn’t load cards: {error.message}</p>
+      </main>
+    )
+  }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-4 pb-28">
-      <section className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h1 className="text-xl font-semibold">
-          {summary.totalCards.toLocaleString()} {summary.totalCards === 1 ? 'card' : 'cards'}
-        </h1>
-        {summary.valuedCards > 0 && (
-          <p className="text-sm text-slate-400">
-            <span className="text-slate-200">{formatMoney(summary.totalValue, { whole: true })}</span> est. value
-            {summary.valuedCards < summary.totalCards && ` (${summary.valuedCards} of ${summary.totalCards} valued)`}
-          </p>
-        )}
-        {summary.totalCost > 0 && (
-          <p className="text-sm text-slate-400">
-            <span className="text-slate-200">{formatMoney(summary.totalCost, { whole: true })}</span> paid
-          </p>
-        )}
+    <main className="mx-auto max-w-6xl px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 md:pt-6">
+      <PageHeader title="Collection" actions={addButton} />
+
+      <section className="mb-5 grid grid-cols-3 gap-2" aria-label="Summary">
+        <Stat label={summary.totalCards === 1 ? 'Card' : 'Cards'} value={summary.totalCards.toLocaleString()} />
+        <Stat
+          label="Est. value"
+          value={summary.valuedCards > 0 ? formatMoney(summary.totalValue, { whole: true }) : '—'}
+          note={
+            summary.valuedCards > 0 && summary.valuedCards < summary.totalCards
+              ? `${summary.valuedCards} of ${summary.totalCards} valued`
+              : undefined
+          }
+        />
+        <Stat label="Paid" value={summary.totalCost > 0 ? formatMoney(summary.totalCost, { whole: true }) : '—'} />
       </section>
 
       {cards.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-700 p-8 text-center">
-          <p className="text-slate-300">No cards yet.</p>
-          <p className="mt-1 text-sm text-slate-500">
-            Tap <strong>Add card</strong> to start, or{' '}
-            <Link to="/import-export" className="text-sky-400">
-              import a spreadsheet
-            </Link>
-            .
-          </p>
-        </div>
+        <EmptyCollection />
       ) : (
         <>
           <div className="mb-3 flex gap-2">
-            <input
-              type="search"
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search player, set, team…"
-              aria-label="Search cards"
-              className={`${inputClass} flex-1`}
-            />
+            <div className="relative flex-1">
+              <Icon
+                name="search"
+                size={18}
+                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-500"
+              />
+              <input
+                type="search"
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                placeholder="Search player, set, team…"
+                aria-label="Search cards"
+                className={`${inputClass} pl-10`}
+              />
+            </div>
             <button
               type="button"
               aria-expanded={showFilters}
+              aria-label={`Filters${activeFilters ? ` (${activeFilters} active)` : ''}`}
               onClick={() => setShowFilters((v) => !v)}
-              className={`min-h-11 shrink-0 rounded-lg border px-4 text-sm ${
-                activeFilters ? 'border-sky-500 text-sky-400' : 'border-slate-700 text-slate-300'
+              className={`relative grid min-h-11 w-12 shrink-0 place-items-center rounded-xl border ${
+                activeFilters || showFilters
+                  ? 'border-sky-500 bg-sky-500/10 text-sky-400'
+                  : 'border-slate-700 bg-slate-900 text-slate-300'
               }`}
             >
-              Filters{activeFilters ? ` (${activeFilters})` : ''}
+              <Icon name="sliders" size={20} />
+              {activeFilters > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 grid size-5 place-items-center rounded-full bg-sky-500 text-[11px] font-bold text-slate-950">
+                  {activeFilters}
+                </span>
+              )}
             </button>
           </div>
 
@@ -93,15 +113,15 @@ export function CollectionPage() {
                 ? `${cards.length} ${cards.length === 1 ? 'entry' : 'entries'}`
                 : `Showing ${filtered.length} of ${cards.length}`}
             </p>
-            <label className="flex items-center gap-2 md:hidden">
-              Sort
+            <label className="flex items-center gap-1 md:hidden">
+              <span className="sr-only">Sort by</span>
               <select
                 value={currentSort}
                 onChange={(e) => {
                   const option = SORT_OPTIONS.find((o) => sortKey(o.sorting) === e.target.value)
                   if (option) setSorting(option.sorting)
                 }}
-                className="min-h-11 rounded-lg border border-slate-700 bg-slate-900 px-2 text-slate-200"
+                className="min-h-11 rounded-lg bg-transparent px-1 text-right font-medium text-slate-200"
               >
                 {!SORT_OPTIONS.some((o) => sortKey(o.sorting) === currentSort) && (
                   <option value={currentSort}>Custom</option>
@@ -116,7 +136,16 @@ export function CollectionPage() {
           </div>
 
           {filtered.length === 0 ? (
-            <p className="py-8 text-center text-slate-400">No cards match. Try clearing filters.</p>
+            <div className={`${panel} p-8 text-center`}>
+              <p className="text-slate-300">No cards match.</p>
+              <button
+                type="button"
+                onClick={() => setFilters({ ...emptyFilters })}
+                className="mt-2 min-h-11 text-sm text-sky-400"
+              >
+                Clear search and filters
+              </button>
+            </div>
           ) : (
             <>
               <div className="md:hidden">
@@ -129,13 +158,58 @@ export function CollectionPage() {
           )}
         </>
       )}
+    </main>
+  )
+}
 
-      <Link
-        to="/cards/new"
-        className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 flex min-h-14 items-center rounded-full bg-sky-500 px-6 font-semibold text-slate-950 shadow-lg shadow-sky-950"
-      >
-        + Add card
-      </Link>
+function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className={`${panel} px-3 py-2.5`}>
+      <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
+      <p className="truncate text-xs text-slate-400">{note ?? label}</p>
+    </div>
+  )
+}
+
+function EmptyCollection() {
+  return (
+    <div className={`${panel} flex flex-col items-center gap-4 px-6 py-10 text-center`}>
+      <span className="grid size-14 place-items-center rounded-2xl bg-sky-500/10 text-sky-400">
+        <Icon name="cards" size={28} />
+      </span>
+      <div>
+        <p className="text-lg font-semibold">No cards yet</p>
+        <p className="mt-1 text-sm text-slate-400">Scan a stack with your camera, or add one by hand.</p>
+      </div>
+      <div className="flex w-full max-w-xs flex-col gap-2">
+        <Link to="/scan" className={buttonPrimary}>
+          <Icon name="camera" size={18} /> Scan cards
+        </Link>
+        <Link to="/cards/new" className={buttonSecondary}>
+          <Icon name="plus" size={18} /> Add a card
+        </Link>
+        <Link to="/more" className="min-h-11 content-center text-sm text-slate-400">
+          or import a spreadsheet
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function CollectionSkeleton() {
+  return (
+    <main className="mx-auto max-w-6xl animate-pulse px-4 pt-[max(1.5rem,env(safe-area-inset-top))] md:pt-6" aria-busy>
+      <span className="sr-only">Loading your collection…</span>
+      <div className="mb-5 h-8 w-40 rounded-lg bg-slate-800" />
+      <div className="mb-5 grid grid-cols-3 gap-2">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-16 rounded-2xl bg-slate-900" />
+        ))}
+      </div>
+      <div className="mb-4 h-11 rounded-xl bg-slate-900" />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="mb-2 h-20 rounded-2xl bg-slate-900" />
+      ))}
     </main>
   )
 }
