@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - .github/keepalive.txt
+      - '**.md'
   workflow_dispatch:
 
 permissions:
