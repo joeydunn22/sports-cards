@@ -42,6 +42,8 @@ type CardFormProps = {
   footer?: ReactNode
   /** Label for the single button in "edit" mode. */
   submitLabel?: string
+  /** Per-field notes shown as warnings, e.g. fields the AI was unsure about. */
+  fieldNotes?: Partial<Record<keyof CardFormValues, string>>
 }
 
 export function CardForm({
@@ -51,6 +53,7 @@ export function CardForm({
   onSubmit,
   footer,
   submitLabel = 'Save changes',
+  fieldNotes = {},
 }: CardFormProps) {
   const {
     register,
@@ -143,13 +146,33 @@ export function CardForm({
 
       <FormSection title="Card">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="Player" htmlFor="player" required error={errors.player?.message} className="col-span-2">
+          <Field
+            label="Player"
+            htmlFor="player"
+            required
+            error={errors.player?.message}
+            warning={fieldNotes.player}
+            className="col-span-2"
+          >
             {textInput('player', { list: 'player', autoCapitalize: 'words', autoFocus: mode === 'new' })}
           </Field>
-          <Field label="Year" htmlFor="year" required error={errors.year?.message} hint="e.g. 2023 or 2023-24">
+          <Field
+            label="Year"
+            htmlFor="year"
+            required
+            error={errors.year?.message}
+            warning={fieldNotes.year}
+            hint="e.g. 2023 or 2023-24"
+          >
             {textInput('year', { list: 'year' })}
           </Field>
-          <Field label="Card #" htmlFor="card_number" required error={errors.card_number?.message}>
+          <Field
+            label="Card #"
+            htmlFor="card_number"
+            required
+            error={errors.card_number?.message}
+            warning={fieldNotes.card_number}
+          >
             {textInput('card_number', { autoCapitalize: 'characters' })}
           </Field>
           <Field
@@ -157,16 +180,16 @@ export function CardForm({
             htmlFor="set_name"
             required
             error={errors.set_name?.message}
-            warning={setNameWarning(setName)}
+            warning={fieldNotes.set_name ?? setNameWarning(setName)}
             hint="The product, no year or color: Topps Finest, Bowman Chrome, Panini Prizm"
             className="col-span-2"
           >
             {textInput('set_name', { list: 'set_name', autoCapitalize: 'words' })}
           </Field>
-          <Field label="Sport" htmlFor="sport" required error={errors.sport?.message}>
+          <Field label="Sport" htmlFor="sport" required error={errors.sport?.message} warning={fieldNotes.sport}>
             {textInput('sport', { list: 'sport', autoCapitalize: 'words' })}
           </Field>
-          <Field label="Team" htmlFor="team">
+          <Field label="Team" htmlFor="team" warning={fieldNotes.team}>
             {textInput('team', { list: 'team', autoCapitalize: 'words' })}
           </Field>
         </div>
@@ -177,6 +200,7 @@ export function CardForm({
           <Field
             label="Insert"
             htmlFor="insert_name"
+            warning={fieldNotes.insert_name}
             hint="Named subset, blank for base: Rookie Autographs, Future Stars"
             className="col-span-2"
           >
@@ -185,6 +209,7 @@ export function CardForm({
           <Field
             label="Parallel"
             htmlFor="parallel"
+            warning={fieldNotes.parallel}
             hint="Color or finish, blank for base: Refractor, Red Refractor, Silver"
             className="col-span-2"
           >
@@ -213,6 +238,8 @@ export function CardForm({
             </div>
             {errors.serial_number || errors.print_run ? (
               <p className="text-xs text-red-400">{errors.serial_number?.message ?? errors.print_run?.message}</p>
+            ) : fieldNotes.serial_number || fieldNotes.print_run ? (
+              <p className="text-xs text-amber-300">{fieldNotes.serial_number ?? fieldNotes.print_run}</p>
             ) : (
               <p className="text-xs text-slate-500">Leave the first box blank if you only know the print run</p>
             )}
@@ -231,6 +258,15 @@ export function CardForm({
             />
           ))}
         </div>
+        {FLAGS.some(([name]) => fieldNotes[name]) && (
+          <p className="mt-2 text-xs text-amber-300">
+            AI isn’t sure about:{' '}
+            {FLAGS.filter(([name]) => fieldNotes[name])
+              .map(([, label]) => label)
+              .join(', ')}
+            . Check them.
+          </p>
+        )}
         <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {isGraded ? (
             <>

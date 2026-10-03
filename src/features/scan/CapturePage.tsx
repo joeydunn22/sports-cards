@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Icon } from '../../components/Icon'
 import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
-import { useCreateScans, type ScanUpload } from '../../hooks/useScans'
+import { useCreateScans, useReadScans, type ScanUpload } from '../../hooks/useScans'
 import { cropCard, loadImage, type CardCrop } from '../../lib/photos'
+import { getAiModel } from './aiModel'
 import { cardSpots, initialOrder, swap, type CapturedPhoto, type CardSpot } from './captureState'
 import { CropPreview } from './CropPreview'
 import { PhotoStep } from './PhotoStep'
@@ -19,6 +20,7 @@ const TIPS = [
 export function CapturePage() {
   const navigate = useNavigate()
   const createScans = useCreateScans()
+  const readScans = useReadScans()
   const [step, setStep] = useState<Step>('fronts')
   const [fronts, setFronts] = useState<CapturedPhoto[]>([])
   const [backs, setBacks] = useState<CapturedPhoto[]>([])
@@ -81,6 +83,8 @@ export function CapturePage() {
         setProgress({ done: items.length + start + done, total })
       },
     })
+    // Hand the new cards to the AI right away; if this fails, the inbox has a button to retry.
+    readScans.mutate({ model: getAiModel() })
   }
 
   function reset() {
@@ -93,6 +97,7 @@ export function CapturePage() {
     crops.current = null
     setUploaded(0)
     createScans.reset()
+    readScans.reset()
   }
 
   if (createScans.isSuccess) {
@@ -106,7 +111,11 @@ export function CapturePage() {
             <p className="text-lg font-semibold">
               {frontSpots.length} {frontSpots.length === 1 ? 'card' : 'cards'} added to your inbox
             </p>
-            <p className="mt-1 text-sm text-slate-400">Review them whenever you’re ready.</p>
+            <p className="mt-1 text-sm text-slate-400">
+              {readScans.isError
+                ? 'They couldn’t be sent to the AI yet; you can send them from the inbox.'
+                : 'The AI is reading them now. Review them whenever you’re ready.'}
+            </p>
           </div>
           <div className="flex w-full max-w-xs flex-col gap-2">
             <Link to="/scan" className={buttonPrimary}>
