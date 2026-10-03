@@ -14,12 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      card_scans: {
+        Row: {
+          back_image_path: string | null
+          batch_id: string | null
+          created_at: string
+          error: string | null
+          extraction: Json | null
+          front_image_path: string
+          id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          back_image_path?: string | null
+          batch_id?: string | null
+          created_at?: string
+          error?: string | null
+          extraction?: Json | null
+          front_image_path: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          back_image_path?: string | null
+          batch_id?: string | null
+          created_at?: string
+          error?: string | null
+          extraction?: Json | null
+          front_image_path?: string
+          id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       cards: {
         Row: {
+          back_image_path: string | null
           card_number: string
           cert_number: string | null
           created_at: string
           estimated_value: number | null
+          front_image_path: string | null
           grade: string | null
           grade_company: string | null
           id: string
@@ -47,10 +88,12 @@ export type Database = {
           year: string
         }
         Insert: {
+          back_image_path?: string | null
           card_number: string
           cert_number?: string | null
           created_at?: string
           estimated_value?: number | null
+          front_image_path?: string | null
           grade?: string | null
           grade_company?: string | null
           id?: string
@@ -78,10 +121,12 @@ export type Database = {
           year: string
         }
         Update: {
+          back_image_path?: string | null
           card_number?: string
           cert_number?: string | null
           created_at?: string
           estimated_value?: number | null
+          front_image_path?: string | null
           grade?: string | null
           grade_company?: string | null
           id?: string
