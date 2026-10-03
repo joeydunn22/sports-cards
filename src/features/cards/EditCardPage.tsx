@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/PageHeader'
 import { buttonDanger, buttonSecondary } from '../../components/ui'
 import { NO_CARDS, useCards, useDeleteCard, useUpdateCard } from '../../hooks/useCards'
 import { CardForm } from './CardForm'
+import { CardPhotos } from './CardPhotos'
 import { fromCard, toCardInput, type CardFormValues } from './cardSchema'
 import { cardTitle } from './cardText'
 import { buildSuggestions } from './suggestions'
@@ -46,6 +47,7 @@ export function EditCardPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] md:pt-4">
       <PageHeader title="Edit card" subtitle={cardTitle(card)} backTo="/" backLabel="Collection" />
+      <CardPhotos front={card.front_image_path} back={card.back_image_path} />
       {/* key: remount with fresh values if the card changes underneath us */}
       <CardForm
         key={card.updated_at}

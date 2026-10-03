@@ -40,9 +40,18 @@ type CardFormProps = {
   onSubmit: (values: CardFormValues, options: { addAnother: boolean }) => Promise<void>
   /** Extra content after the fields, e.g. the delete button on the edit page. */
   footer?: ReactNode
+  /** Label for the single button in "edit" mode. */
+  submitLabel?: string
 }
 
-export function CardForm({ initialValues, suggestions, mode, onSubmit, footer }: CardFormProps) {
+export function CardForm({
+  initialValues,
+  suggestions,
+  mode,
+  onSubmit,
+  footer,
+  submitLabel = 'Save changes',
+}: CardFormProps) {
   const {
     register,
     handleSubmit,
@@ -299,7 +308,7 @@ export function CardForm({ initialValues, suggestions, mode, onSubmit, footer }:
               disabled={isSubmitting}
               className={`${buttonPrimary} min-h-12 flex-1`}
             >
-              {isSubmitting ? 'Saving…' : 'Save changes'}
+              {isSubmitting ? 'Saving…' : submitLabel}
             </button>
           )}
         </div>

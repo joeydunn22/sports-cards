@@ -65,7 +65,7 @@ export function CardList({ table }: { table: CardTableInstance }) {
             to={`/cards/${card.id}`}
             className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-2.5 pr-3 active:bg-slate-800"
           >
-            <CardThumb card={card} />
+            <CardThumb path={card.front_image_path} />
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">
                 {card.player}

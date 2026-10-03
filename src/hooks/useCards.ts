@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { demoCards, IS_DEMO } from '../dev/demo'
 import { supabase } from '../lib/supabase'
+import { removePhotos } from './usePhotos'
 import type { Card, CardInput } from '../types/card'
 
-const CARDS_KEY = ['cards'] as const
+export const CARDS_KEY = ['cards'] as const
 /** Stable fallback while loading, so memoized derivations don't recompute every render. */
 export const NO_CARDS: Card[] = []
 /** Supabase caps a single response at 1,000 rows, so fetch in pages. */
@@ -78,8 +79,14 @@ export function useDeleteCard() {
   const queryClient = useQueryClient()
   return useMutation<void, Error, string, Snapshot>({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('cards').delete().eq('id', id)
+      const { data, error } = await supabase
+        .from('cards')
+        .delete()
+        .eq('id', id)
+        .select('front_image_path, back_image_path')
       if (error) throw error
+      // The card is gone either way; a leftover photo file is harmless, so don't fail on it.
+      await removePhotos(data.flatMap((c) => [c.front_image_path, c.back_image_path])).catch(() => {})
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: CARDS_KEY })

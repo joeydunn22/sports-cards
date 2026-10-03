@@ -7,6 +7,8 @@ import { CollectionPage } from './features/cards/CollectionPage'
 import { EditCardPage } from './features/cards/EditCardPage'
 import { NewCardPage } from './features/cards/NewCardPage'
 import { MorePage } from './features/more/MorePage'
+import { CapturePage } from './features/scan/CapturePage'
+import { ReviewScanPage } from './features/scan/ReviewScanPage'
 import { ScanPage } from './features/scan/ScanPage'
 
 const queryClient = new QueryClient({
@@ -25,6 +27,8 @@ export default function App() {
                 <Route path="/cards/new" element={<NewCardPage />} />
                 <Route path="/cards/:id" element={<EditCardPage />} />
                 <Route path="/scan" element={<ScanPage />} />
+                <Route path="/scan/new" element={<CapturePage />} />
+                <Route path="/scan/:id" element={<ReviewScanPage />} />
                 <Route path="/more" element={<MorePage />} />
                 <Route path="/import-export" element={<Navigate to="/more" replace />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
