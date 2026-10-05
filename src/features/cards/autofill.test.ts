@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeCard } from '../../test/makeCard'
-import { fillFromCollection, mergeLookup } from './autofill'
+import { fillFromCollection } from './autofill'
 import { emptyCardForm } from './cardSchema'
 
 const ohtani = makeCard({
@@ -31,15 +31,5 @@ describe('fillFromCollection', () => {
     const typed = { ...emptyCardForm, player: 'Shohei Ohtani', team: 'Dodgers', sport: 'Baseball' }
     expect(fillFromCollection(typed, [ohtani])).toBeNull()
     expect(fillFromCollection({ ...emptyCardForm, player: 'Nobody' }, [ohtani])).toBeNull()
-  })
-})
-
-describe('mergeLookup', () => {
-  it('fills blanks, turns on flags, and reports disagreements without applying them', () => {
-    const typed = { ...emptyCardForm, player: 'Shohei Ohtani', year: '2023', set_name: 'Topps Finest', card_number: '99' }
-    const found = { ...typed, card_number: '12', team: 'Los Angeles Angels', sport: 'Baseball', is_rookie: true }
-    const merge = mergeLookup(typed, found)
-    expect(merge.values).toEqual({ team: 'Los Angeles Angels', sport: 'Baseball', is_rookie: true })
-    expect(merge.conflicts).toEqual([{ field: 'card_number', found: '12' }])
   })
 })

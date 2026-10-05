@@ -55,38 +55,6 @@ function fillBlanks(
   return names.length ? { values: filled, fields: names, source } : null
 }
 
-const LOOKUP_TEXT = ['player', 'year', 'set_name', 'insert_name', 'parallel', 'card_number', 'sport', 'team', 'print_run'] as const
-const LOOKUP_FLAGS = ['is_rookie', 'is_auto', 'is_patch', 'is_relic'] as const
-
-export type LookupMerge = {
-  values: Partial<CardFormValues>
-  filled: string[]
-  /** Where the lookup disagrees with something typed: shown, never applied. */
-  conflicts: { field: string; found: string }[]
-}
-
-/** Applies an AI lookup to the form: fills blanks and turns on flags it found, but leaves what was typed alone. */
-export function mergeLookup(current: CardFormValues, found: CardFormValues): LookupMerge {
-  const merge: LookupMerge = { values: {}, filled: [], conflicts: [] }
-  for (const field of LOOKUP_TEXT) {
-    const mine = current[field].trim()
-    const theirs = found[field].trim()
-    if (!theirs) continue
-    if (!mine) {
-      merge.values[field] = theirs
-      merge.filled.push(field)
-    } else if (norm(mine) !== norm(theirs)) {
-      merge.conflicts.push({ field, found: theirs })
-    }
-  }
-  for (const field of LOOKUP_FLAGS) {
-    if (found[field] && !current[field]) {
-      merge.values[field] = true
-      merge.filled.push(field)
-    }
-  }
-  return merge
-}
 
 const FIELD_NAMES: Record<string, string> = {
   player: 'Player',

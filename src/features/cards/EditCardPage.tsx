@@ -9,7 +9,6 @@ import { CardPhotos } from './CardPhotos'
 import { fromCard, toCardInput, type CardFormValues } from './cardSchema'
 import { cardTitle } from './cardText'
 import { buildSuggestions } from './suggestions'
-import { useCardLookUp } from './useCardLookUp'
 
 export function EditCardPage() {
   const { id } = useParams()
@@ -17,7 +16,6 @@ export function EditCardPage() {
   const cards = data ?? NO_CARDS
   const updateCard = useUpdateCard()
   const deleteCard = useDeleteCard()
-  const { lookUp, dialog } = useCardLookUp()
   const navigate = useNavigate()
   const suggestions = useMemo(() => buildSuggestions(cards), [cards])
   const card = cards.find((c) => c.id === id)
@@ -50,7 +48,6 @@ export function EditCardPage() {
     <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] md:pt-4">
       <PageHeader title="Edit card" subtitle={cardTitle(card)} backTo="/" backLabel="Collection" />
       <CardPhotos front={card.front_image_path} back={card.back_image_path} />
-      {dialog}
       {/* key: remount with fresh values if the card changes underneath us */}
       <CardForm
         key={card.updated_at}
@@ -58,7 +55,6 @@ export function EditCardPage() {
         initialValues={fromCard(card)}
         suggestions={suggestions}
         duplicates={{ cards, excludeId: card.id, askOnSave: false }}
-        lookUp={lookUp}
         onSubmit={handleSubmit}
         footer={
           <button type="button" onClick={handleDelete} className={`${buttonDanger} mt-2 min-h-12`}>

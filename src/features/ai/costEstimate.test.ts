@@ -26,7 +26,7 @@ describe('estimates', () => {
   })
 
   it('prices an unknown model like the most expensive one', () => {
-    expect(estimateEach('identify', 'claude-new', 1, []).expected).toBe(0.13)
+    expect(estimateEach('lookup', 'claude-new', 1, []).expected).toBe(0.09)
   })
 })
 

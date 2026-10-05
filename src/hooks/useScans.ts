@@ -193,24 +193,3 @@ export function useConfirmScan() {
     },
   })
 }
-
-export type IdentifyResult = {
-  fields?: Record<string, unknown>
-  confirmed?: string[]
-  still_uncertain?: string[]
-  sources?: { url: string; title?: string }[]
-  notes?: string
-  error?: string
-  dollars?: number
-  searches?: number
-}
-
-/** Fills in a hand-typed card from its checklist (the AI searches the web; takes up to a minute). */
-export function useIdentifyCard() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({ model, card }: { model: string; card: Record<string, unknown> }) =>
-      callScanFunction<IdentifyResult>({ action: 'identify', model, card }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: AI_USAGE_KEY }),
-  })
-}

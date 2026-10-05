@@ -2,18 +2,17 @@
  * Rough cost estimates for AI runs, shown before they start. They begin from typical per-card costs
  * and switch to the collector's own averages once the spending log (public.ai_usage) has enough runs.
  */
-export type AiKind = 'read' | 'lookup' | 'identify'
+export type AiKind = 'read' | 'lookup'
 export type UsageEntry = { kind: string; model: string; cards: number; dollars: number; created_at: string }
 export type Estimate = { expected: number; max: number }
 
 /**
- * Typical dollars per card. Reading and lookups run through the Batch API (half price); identify runs
- * right away at full price. Lookups include up to 3 web searches at 1¢ each.
+ * Typical dollars per card. Both run through the Batch API (half price); lookups include up to
+ * 3 web searches at 1¢ each.
  */
 const TYPICAL: Record<AiKind, Record<string, number>> = {
   read: { 'claude-sonnet-5-5': 0.015, 'claude-opus-5-5': 0.03, 'claude-haiku-4-5': 0.008 },
   lookup: { 'claude-sonnet-5-5': 0.05, 'claude-opus-5-5': 0.09, 'claude-haiku-4-5': 0.035 },
-  identify: { 'claude-sonnet-5-5': 0.07, 'claude-opus-5-5': 0.13, 'claude-haiku-4-5': 0.045 },
 }
 /** Own averages replace the typical figure after this many logged runs of the same kind and model. */
 const MIN_HISTORY = 5
@@ -35,7 +34,7 @@ export function estimateRead(model: string, cards: number, history: UsageEntry[]
   return { expected: read, max: read * SPREAD + (autoLookup ? cards * perCard('lookup', model, history) * SPREAD : 0) }
 }
 
-export function estimateEach(kind: 'lookup' | 'identify', model: string, cards: number, history: UsageEntry[]): Estimate {
+export function estimateEach(kind: 'lookup', model: string, cards: number, history: UsageEntry[]): Estimate {
   const each = perCard(kind, model, history)
   return { expected: cards * each, max: cards * each * SPREAD }
 }

@@ -8,9 +8,8 @@ import { buttonPrimary, buttonSecondary, panel, sectionTitle } from '../../compo
 import type { Card } from '../../types/card'
 import { cardFormSchema, stickyForm, toCardInput, type CardFormValues } from './cardSchema'
 import { cardTitle, setNameWarning } from './cardText'
-import { fieldName, fillFromCollection, mergeLookup, type LookupMerge } from './autofill'
+import { fieldName, fillFromCollection } from './autofill'
 import { DuplicateNotice, DuplicatePrompt } from './DuplicateNotice'
-import { LookupPanel, type LookupOutcome } from './LookupPanel'
 import { findDuplicates, type DuplicateMatch } from './duplicates'
 
 export type SuggestionField =
@@ -54,8 +53,6 @@ type CardFormProps = {
   duplicates?: { cards: Card[]; excludeId?: string; askOnSave: boolean }
   /** Fill blank fields from matching cards in the collection when Player, Year, Set or Card # is left. */
   autofillFrom?: Card[]
-  /** "Look up details": an AI checklist search that fills in blanks (`costLabel` is its estimate). */
-  lookUp?: { costLabel: string; run: (values: CardFormValues) => Promise<LookupOutcome> }
 }
 
 type PendingSave = { values: CardFormValues; addAnother: boolean; match: DuplicateMatch }
@@ -70,7 +67,6 @@ export function CardForm({
   fieldNotes = {},
   duplicates,
   autofillFrom,
-  lookUp,
 }: CardFormProps) {
   const {
     register,
@@ -86,10 +82,6 @@ export function CardForm({
   const [pending, setPending] = useState<PendingSave | null>(null)
   const [saving, setSaving] = useState(false)
   const [filledNote, setFilledNote] = useState<string | null>(null)
-  const [lookupBusy, setLookupBusy] = useState(false)
-  const [lookupResult, setLookupResult] = useState<{ outcome: LookupOutcome; merge: LookupMerge | null } | null>(
-    null,
-  )
 
   // Success toasts fade out on their own; errors stay until the next save attempt.
   useEffect(() => {
@@ -139,7 +131,6 @@ export function CardForm({
         setStatus({ kind: 'ok', text: mergeInto ? `Added to quantity: ${title}` : `Saved: ${title}` })
         reset(stickyForm(formValues))
         setFilledNote(null)
-        setLookupResult(null)
         window.scrollTo({ top: 0 })
         setFocus('player')
       }
@@ -181,21 +172,6 @@ export function CardForm({
     setFilledNote(`Filled ${fill.fields.map(fieldName).join(', ')} from ${fill.source}.`)
   }
 
-  async function runLookUp() {
-    if (!lookUp) return
-    setLookupBusy(true)
-    try {
-      const outcome = await lookUp.run(getValues())
-      if (!outcome) return // cancelled at the cost prompt
-      const merge = outcome.found ? mergeLookup(getValues(), outcome.found) : null
-      if (merge) apply(merge.values)
-      setLookupResult({ outcome, merge })
-    } catch (err) {
-      setLookupResult({ outcome: { error: err instanceof Error ? err.message : 'The lookup failed.' }, merge: null })
-    } finally {
-      setLookupBusy(false)
-    }
-  }
 
   function textInput(
     name: TextFieldName,
@@ -303,21 +279,6 @@ export function CardForm({
           </Field>
         </div>
         {filledNote && <p className="mt-3 text-xs text-emerald-300">{filledNote}</p>}
-        {lookUp && (
-          <LookupPanel
-            costLabel={lookUp.costLabel}
-            canRun={Boolean(player.trim() && (setName.trim() || cardNumber.trim()))}
-            busy={lookupBusy}
-            result={lookupResult}
-            onRun={() => void runLookUp()}
-            onUse={(field, value) => {
-              apply({ [field]: value })
-              setLookupResult((r) =>
-                r?.merge ? { ...r, merge: { ...r.merge, conflicts: r.merge.conflicts.filter((c) => c.field !== field) } } : r,
-              )
-            }}
-          />
-        )}
       </FormSection>
 
       <FormSection title="Version">

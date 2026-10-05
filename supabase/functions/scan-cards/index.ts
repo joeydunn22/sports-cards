@@ -3,8 +3,6 @@
 //   POST { action: "poll" } collects finished results into card_scans.extraction. Cards whose reading
 //     has a doubt a checklist can settle (see triage.ts) go out again, once, with web search.
 //   POST { action: "lookup", ids } runs that checklist pass on reviewed-ready cards on request.
-//   POST { action: "identify", model?, card } fills in a hand-typed card from its checklist, right away
-//     (not batched, since the collector is waiting on the form).
 // Every call's actual cost goes in public.ai_usage, which the app subtracts from the credit balance.
 // Runs as the signed-in user, so row-level security applies to every query.
 import Anthropic from 'npm:@anthropic-ai/sdk'
@@ -12,7 +10,6 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import {
   EXTRACTION_SCHEMA,
   FIELDS,
-  identifyInstructions,
   LOOKUP_MAX_SEARCHES,
   lookupInstructions,
   RECORD_CARD_TOOL,
@@ -37,7 +34,7 @@ type Scan = { id: string; front_image_path: string; back_image_path: string | nu
 type Reading = Record<string, unknown> & { model?: string; uncertain_fields?: string[] }
 type ScanWithReading = Scan & { extraction: Reading }
 type UsageRow = {
-  kind: 'read' | 'lookup' | 'identify'
+  kind: 'read' | 'lookup'
   model: string
   searches: number
   input_tokens: number
@@ -105,9 +102,6 @@ Deno.serve(async (req) => {
     }
     if (body.action === 'poll') return json(await poll(supabase, anthropic))
     if (body.action === 'lookup' && ids) return json(await requestLookups(supabase, anthropic, ids))
-    if (body.action === 'identify' && body.card && typeof body.card === 'object') {
-      return json(await identify(supabase, anthropic, isModel(body.model) ? body.model : DEFAULT_MODEL, body.card))
-    }
     return json({ error: 'Unknown action.' }, 400)
   } catch (err) {
     console.error(err)
@@ -284,50 +278,6 @@ async function submitLookups(supabase: SupabaseClient, anthropic: Anthropic, sca
       scans.map((s) => s.id),
     )
   if (error) throw error
-}
-
-/** Fills in a hand-typed card from its checklist. Synchronous: the collector is waiting on the form. */
-async function identify(supabase: SupabaseClient, anthropic: Anthropic, model: Model, typed: Record<string, unknown>) {
-  const card = Object.fromEntries(FIELDS.filter((f) => f in typed).map((f) => [f, typed[f]]))
-  const system = systemPrompt(await knownNames(supabase))
-  const messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: identifyInstructions(card) }]
-  const spent: UsageRow[] = []
-  let message: Anthropic.Messages.Message | null = null
-  try {
-    // A long search turn can pause; sending it back continues it (a few times at most).
-    for (let turn = 0; turn < 3; turn++) {
-      message = await anthropic.messages.create({
-        model,
-        max_tokens: 16000,
-        system,
-        ...thinking(model),
-        ...(model === 'claude-haiku-4-5' ? {} : { output_config: { effort: 'low' } }),
-        tools: [searchTool(model), RECORD_CARD_TOOL],
-        messages,
-      } as unknown as Anthropic.Messages.MessageCreateParamsNonStreaming)
-      spent.push(usageRow('identify', message, false))
-      if (message.stop_reason !== 'pause_turn') break
-      messages.push({ role: 'assistant', content: message.content })
-    }
-  } finally {
-    await logUsage(supabase, spent)
-  }
-  const dollars = spent.reduce((sum, row) => sum + row.dollars, 0)
-  if (!message || message.stop_reason === 'refusal') return { error: 'The AI declined to look this card up.', dollars }
-  const call = message.content.find(
-    (block): block is Anthropic.Messages.ToolUseBlock => block.type === 'tool_use' && block.name === 'record_card',
-  )
-  if (!call) return { error: 'The checklist search didn’t find an answer.', dollars }
-  const input = call.input as Record<string, unknown>
-  return {
-    fields: Object.fromEntries(FIELDS.map((f) => [f, input[f]])),
-    confirmed: input.confirmed_fields ?? [],
-    still_uncertain: input.still_uncertain ?? [],
-    sources: sourcesFrom(message, input),
-    notes: input.notes ?? '',
-    dollars,
-    searches: spent.reduce((sum, row) => sum + row.searches, 0),
-  }
 }
 
 /** A lookup claimed but never sent stays on screen as its first reading rather than "checking" forever. */
