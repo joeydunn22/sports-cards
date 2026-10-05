@@ -75,6 +75,26 @@ export function useUpdateCard() {
   })
 }
 
+/** Another copy of a card already in the collection: bump its quantity instead of adding a row. */
+export function useAddQuantity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ card, quantity }: { card: Card; quantity: number }) => {
+      const { data, error } = await supabase
+        .from('cards')
+        .update({ quantity: card.quantity + quantity })
+        .eq('id', card.id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: (card) => {
+      queryClient.setQueryData<Card[]>(CARDS_KEY, (old) => old?.map((c) => (c.id === card.id ? card : c)))
+    },
+  })
+}
+
 export function useDeleteCard() {
   const queryClient = useQueryClient()
   return useMutation<void, Error, string, Snapshot>({

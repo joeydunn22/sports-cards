@@ -1,6 +1,8 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { makeCard } from '../../test/makeCard'
 import { CardForm } from './CardForm'
 import { emptyCardForm } from './cardSchema'
 
@@ -58,5 +60,32 @@ describe('CardForm', () => {
     await user.click(screen.getByRole('button', { name: 'Graded' }))
     expect(screen.getByLabelText('Grade')).toBeInTheDocument()
     expect(screen.queryByLabelText('Condition')).not.toBeInTheDocument()
+  })
+
+  it('offers to add an extra copy to the existing card instead of a new entry', async () => {
+    const existing = makeCard({ player: 'Shohei Ohtani', year: '2023', set_name: 'Topps Finest', card_number: '12' })
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CardForm
+          mode="new"
+          initialValues={{ ...emptyCardForm, year: '2023', set_name: 'Topps Finest', sport: 'Baseball' }}
+          suggestions={{}}
+          duplicates={{ cards: [existing], askOnSave: true }}
+          onSubmit={onSubmit}
+        />
+      </QueryClientProvider>,
+    )
+    const user = userEvent.setup()
+    await user.type(input(/^Player/), 'shohei ohtani')
+    await user.type(input(/^Card #/), '#12')
+    expect(screen.getByText('Already in your collection')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save & add another' }))
+    expect(onSubmit).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'Add to it (quantity 2)' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][1]).toEqual({ addAnother: true, mergeInto: existing })
+    expect(await screen.findByText(/Added to quantity/)).toBeInTheDocument()
   })
 })

@@ -128,6 +128,37 @@ export function useDeleteScan() {
   })
 }
 
+/**
+ * The scanned card is another copy of one already in the collection: add to that card's quantity.
+ * Its photos move to that card if it has none yet; otherwise they're removed with the scan.
+ */
+export function useMergeScan() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ scan, card, quantity }: { scan: CardScan; card: Card; quantity: number }) => {
+      const adoptPhotos = !card.front_image_path
+      const { data, error } = await supabase
+        .from('cards')
+        .update({
+          quantity: card.quantity + quantity,
+          ...(adoptPhotos ? { front_image_path: scan.front_image_path, back_image_path: scan.back_image_path } : {}),
+        })
+        .eq('id', card.id)
+        .select()
+        .single()
+      if (error) throw error
+      const { error: deleteError } = await supabase.from('card_scans').delete().eq('id', scan.id)
+      if (deleteError) throw deleteError
+      if (!adoptPhotos) await removePhotos([scan.front_image_path, scan.back_image_path]).catch(() => {})
+      return data
+    },
+    onSuccess: (card, { scan }) => {
+      queryClient.setQueryData<Card[]>(CARDS_KEY, (old) => old?.map((c) => (c.id === card.id ? card : c)))
+      queryClient.setQueryData<CardScan[]>(SCANS_KEY, (old) => old?.filter((s) => s.id !== scan.id))
+    },
+  })
+}
+
 /** Turns a reviewed scan into a card. The photos stay where they are and now belong to the card. */
 export function useConfirmScan() {
   const queryClient = useQueryClient()

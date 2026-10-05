@@ -5,8 +5,11 @@ import { Field, inputClass } from '../../components/Field'
 import { Icon } from '../../components/Icon'
 import { ToggleChip } from '../../components/ToggleChip'
 import { buttonPrimary, buttonSecondary, panel, sectionTitle } from '../../components/ui'
+import type { Card } from '../../types/card'
 import { cardFormSchema, stickyForm, toCardInput, type CardFormValues } from './cardSchema'
 import { cardTitle, setNameWarning } from './cardText'
+import { DuplicateNotice, DuplicatePrompt } from './DuplicateNotice'
+import { findDuplicates, type DuplicateMatch } from './duplicates'
 
 export type SuggestionField =
   | 'player'
@@ -37,14 +40,19 @@ type CardFormProps = {
   suggestions: Suggestions
   /** "new" shows Save & add another; "edit" shows a single Save changes button. */
   mode: 'new' | 'edit'
-  onSubmit: (values: CardFormValues, options: { addAnother: boolean }) => Promise<void>
+  /** `mergeInto` is set when the collector chose to add this copy to an existing card's quantity. */
+  onSubmit: (values: CardFormValues, options: { addAnother: boolean; mergeInto?: Card }) => Promise<void>
   /** Extra content after the fields, e.g. the delete button on the edit page. */
   footer?: ReactNode
   /** Label for the single button in "edit" mode. */
   submitLabel?: string
   /** Per-field notes shown as warnings, e.g. fields the AI was unsure about. */
   fieldNotes?: Partial<Record<keyof CardFormValues, string>>
+  /** The collection, to flag cards already in it. `askOnSave` offers to merge plain extra copies. */
+  duplicates?: { cards: Card[]; excludeId?: string; askOnSave: boolean }
 }
+
+type PendingSave = { values: CardFormValues; addAnother: boolean; match: DuplicateMatch }
 
 export function CardForm({
   initialValues,
@@ -54,6 +62,7 @@ export function CardForm({
   footer,
   submitLabel = 'Save changes',
   fieldNotes = {},
+  duplicates,
 }: CardFormProps) {
   const {
     register,
@@ -65,6 +74,8 @@ export function CardForm({
     formState: { errors, isSubmitting },
   } = useForm<CardFormValues>({ resolver: zodResolver(cardFormSchema), defaultValues: initialValues })
   const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [pending, setPending] = useState<PendingSave | null>(null)
+  const [saving, setSaving] = useState(false)
 
   // Success toasts fade out on their own; errors stay until the next save attempt.
   useEffect(() => {
@@ -77,26 +88,67 @@ export function CardForm({
     control,
     name: ['set_name', 'is_rookie', 'is_auto', 'is_patch', 'is_relic', 'is_graded'],
   })
+  const [player, year, insertName, parallel, cardNumber, serial, cert] = useWatch({
+    control,
+    name: ['player', 'year', 'insert_name', 'parallel', 'card_number', 'serial_number', 'cert_number'],
+  })
+  const matches = duplicates
+    ? findDuplicates(
+        {
+          player,
+          year,
+          set_name: setName,
+          insert_name: insertName,
+          parallel,
+          card_number: cardNumber,
+          serial_number: /^\d+$/.test(serial.trim()) ? Number(serial.trim()) : null,
+          is_graded: isGraded,
+          cert_number: cert,
+        },
+        duplicates.cards,
+        duplicates.excludeId,
+      )
+    : []
   const flagValues = { is_rookie: isRookie, is_auto: isAuto, is_patch: isPatch, is_relic: isRelic, is_graded: isGraded }
   const hasMoney = Boolean(
     initialValues.purchase_price || initialValues.estimated_value || initialValues.sold_price,
   )
 
+  async function save(formValues: CardFormValues, addAnother: boolean, mergeInto?: Card) {
+    setStatus(null)
+    setPending(null)
+    setSaving(true)
+    try {
+      await onSubmit(formValues, { addAnother, mergeInto })
+      if (addAnother) {
+        const title = cardTitle(toCardInput(formValues))
+        setStatus({ kind: 'ok', text: mergeInto ? `Added to quantity: ${title}` : `Saved: ${title}` })
+        reset(stickyForm(formValues))
+        window.scrollTo({ top: 0 })
+        setFocus('player')
+      }
+    } catch (err) {
+      setStatus({ kind: 'error', text: err instanceof Error ? err.message : 'Could not save. Try again.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const submit = (addAnother: boolean) =>
     handleSubmit(async (formValues) => {
-      setStatus(null)
-      try {
-        await onSubmit(formValues, { addAnother })
-        if (addAnother) {
-          setStatus({ kind: 'ok', text: `Saved: ${cardTitle(toCardInput(formValues))}` })
-          reset(stickyForm(formValues))
-          window.scrollTo({ top: 0 })
-          setFocus('player')
-        }
-      } catch (err) {
-        setStatus({ kind: 'error', text: err instanceof Error ? err.message : 'Could not save. Try again.' })
+      // Ask first when this is a plain extra copy (merge?) or looks like a card entered twice.
+      const ask = duplicates?.askOnSave
+        ? findDuplicates(toCardInput(formValues), duplicates.cards, duplicates.excludeId).find(
+            (m) => m.kind !== 'other-copy',
+          )
+        : undefined
+      if (ask) {
+        setPending({ values: formValues, addAnother, match: ask })
+        return
       }
+      await save(formValues, addAnother)
     })
+  const busy = isSubmitting || saving
 
   function textInput(
     name: TextFieldName,
@@ -247,6 +299,8 @@ export function CardForm({
         </div>
       </FormSection>
 
+      <DuplicateNotice matches={matches} />
+
       <FormSection title="Attributes">
         <div className="flex flex-wrap gap-2" aria-label="Card attributes">
           {FLAGS.map(([name, label]) => (
@@ -318,13 +372,24 @@ export function CardForm({
 
       {footer}
 
+      {pending && (
+        <DuplicatePrompt
+          match={pending.match}
+          quantity={Number(pending.values.quantity) || 1}
+          busy={saving}
+          onMerge={() => void save(pending.values, pending.addAnother, pending.match.card)}
+          onSeparate={() => void save(pending.values, pending.addAnother)}
+          onCancel={() => setPending(null)}
+        />
+      )}
+
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-800 bg-slate-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="mx-auto flex max-w-3xl gap-3">
           {mode === 'new' ? (
             <>
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={busy}
                 onClick={submit(false)}
                 className={`${buttonSecondary} min-h-12 flex-1`}
               >
@@ -332,19 +397,19 @@ export function CardForm({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={busy}
                 className={`${buttonPrimary} min-h-12 flex-[2]`}
               >
-                {isSubmitting ? 'Saving…' : 'Save & add another'}
+                {busy ? 'Saving…' : 'Save & add another'}
               </button>
             </>
           ) : (
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={busy}
               className={`${buttonPrimary} min-h-12 flex-1`}
             >
-              {isSubmitting ? 'Saving…' : submitLabel}
+              {busy ? 'Saving…' : submitLabel}
             </button>
           )}
         </div>

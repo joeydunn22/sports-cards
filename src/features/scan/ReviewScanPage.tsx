@@ -4,7 +4,16 @@ import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
 import { buttonDanger, buttonSecondary } from '../../components/ui'
 import { NO_CARDS, useCards } from '../../hooks/useCards'
-import { NO_SCANS, useConfirmScan, useDeleteScan, useRereadScans, useScanPolling, useScans } from '../../hooks/useScans'
+import {
+  NO_SCANS,
+  useConfirmScan,
+  useDeleteScan,
+  useMergeScan,
+  useRereadScans,
+  useScanPolling,
+  useScans,
+} from '../../hooks/useScans'
+import type { Card } from '../../types/card'
 import { CardForm } from '../cards/CardForm'
 import { CardPhotos } from '../cards/CardPhotos'
 import { toCardInput, type CardFormValues } from '../cards/cardSchema'
@@ -20,8 +29,10 @@ export function ReviewScanPage() {
   const { data: scansData, isPending } = useScans()
   const { data: cardsData } = useCards()
   const scans = scansData ?? NO_SCANS
-  const suggestions = useMemo(() => buildSuggestions(cardsData ?? NO_CARDS), [cardsData])
+  const cards = cardsData ?? NO_CARDS
+  const suggestions = useMemo(() => buildSuggestions(cards), [cards])
   const confirmScan = useConfirmScan()
+  const mergeScan = useMergeScan()
   const deleteScan = useDeleteScan()
   const reread = useRereadScans()
   useScanPolling(scans)
@@ -49,9 +60,10 @@ export function ReviewScanPage() {
     )
   }
 
-  async function handleSubmit(values: CardFormValues) {
+  async function handleSubmit(values: CardFormValues, { mergeInto }: { mergeInto?: Card }) {
     const input = toCardInput(values)
-    await confirmScan.mutateAsync({ scan: scan!, input })
+    if (mergeInto) await mergeScan.mutateAsync({ scan: scan!, card: mergeInto, quantity: input.quantity ?? 1 })
+    else await confirmScan.mutateAsync({ scan: scan!, input })
     rememberScanValues(values)
     rememberSport(input.sport)
     goNext()
@@ -92,6 +104,7 @@ export function ReviewScanPage() {
         submitLabel={nextId ? 'Save & next' : 'Save card'}
         initialValues={initialValues}
         suggestions={suggestions}
+        duplicates={{ cards, askOnSave: true }}
         onSubmit={handleSubmit}
         footer={
           <button type="button" onClick={handleDiscard} className={`${buttonDanger} mt-2 min-h-12`}>

@@ -54,6 +54,7 @@ export function EditCardPage() {
         mode="edit"
         initialValues={fromCard(card)}
         suggestions={suggestions}
+        duplicates={{ cards, excludeId: card.id, askOnSave: false }}
         onSubmit={handleSubmit}
         footer={
           <button type="button" onClick={handleDelete} className={`${buttonDanger} mt-2 min-h-12`}>
