@@ -1,0 +1,109 @@
+import type { Card } from '../../types/card'
+import type { CardFormValues } from './cardSchema'
+
+const norm = (value: string | null | undefined) => (value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+export type Fill = { values: Partial<CardFormValues>; fields: string[]; source: string }
+
+/**
+ * Free fill-in from cards already in the collection, for fields still blank:
+ * - same year, set and card number as an existing card (say, another parallel of it): player, team,
+ *   sport, insert and RC;
+ * - otherwise the same player: team and sport from their most recent card.
+ * Never overwrites anything typed.
+ */
+export function fillFromCollection(values: CardFormValues, cards: Card[]): Fill | null {
+  const sameSpot =
+    norm(values.card_number) && norm(values.set_name) && norm(values.year)
+      ? cards.find(
+          (c) =>
+            norm(c.card_number) === norm(values.card_number) &&
+            norm(c.set_name) === norm(values.set_name) &&
+            norm(c.year) === norm(values.year),
+        )
+      : undefined
+  if (sameSpot) {
+    return fillBlanks(values, {
+      card: sameSpot,
+      fields: ['player', 'team', 'sport', 'insert_name', 'is_rookie'],
+      source: `your ${sameSpot.year} ${sameSpot.set_name} #${sameSpot.card_number}`,
+    })
+  }
+  const player = norm(values.player)
+  if (!player) return null
+  // Cards load newest first, so the first match is the player's most recent card.
+  const samePlayer = cards.find((c) => norm(c.player) === player)
+  return samePlayer
+    ? fillBlanks(values, { card: samePlayer, fields: ['team', 'sport'], source: `your other ${samePlayer.player} cards` })
+    : null
+}
+
+function fillBlanks(
+  values: CardFormValues,
+  { card, fields, source }: { card: Card; fields: (keyof Card & keyof CardFormValues)[]; source: string },
+): Fill | null {
+  const filled: Partial<CardFormValues> = {}
+  for (const field of fields) {
+    const theirs = card[field]
+    if (typeof theirs === 'boolean') {
+      if (theirs && !values[field]) Object.assign(filled, { [field]: true })
+    } else if (theirs && !String(values[field]).trim()) {
+      Object.assign(filled, { [field]: String(theirs) })
+    }
+  }
+  const names = Object.keys(filled)
+  return names.length ? { values: filled, fields: names, source } : null
+}
+
+const LOOKUP_TEXT = ['player', 'year', 'set_name', 'insert_name', 'parallel', 'card_number', 'sport', 'team', 'print_run'] as const
+const LOOKUP_FLAGS = ['is_rookie', 'is_auto', 'is_patch', 'is_relic'] as const
+
+export type LookupMerge = {
+  values: Partial<CardFormValues>
+  filled: string[]
+  /** Where the lookup disagrees with something typed: shown, never applied. */
+  conflicts: { field: string; found: string }[]
+}
+
+/** Applies an AI lookup to the form: fills blanks and turns on flags it found, but leaves what was typed alone. */
+export function mergeLookup(current: CardFormValues, found: CardFormValues): LookupMerge {
+  const merge: LookupMerge = { values: {}, filled: [], conflicts: [] }
+  for (const field of LOOKUP_TEXT) {
+    const mine = current[field].trim()
+    const theirs = found[field].trim()
+    if (!theirs) continue
+    if (!mine) {
+      merge.values[field] = theirs
+      merge.filled.push(field)
+    } else if (norm(mine) !== norm(theirs)) {
+      merge.conflicts.push({ field, found: theirs })
+    }
+  }
+  for (const field of LOOKUP_FLAGS) {
+    if (found[field] && !current[field]) {
+      merge.values[field] = true
+      merge.filled.push(field)
+    }
+  }
+  return merge
+}
+
+const FIELD_NAMES: Record<string, string> = {
+  player: 'Player',
+  year: 'Year',
+  set_name: 'Set',
+  insert_name: 'Insert',
+  parallel: 'Parallel',
+  card_number: 'Card #',
+  sport: 'Sport',
+  team: 'Team',
+  print_run: 'Print run',
+  is_rookie: 'RC',
+  is_auto: 'Auto',
+  is_patch: 'Patch',
+  is_relic: 'Relic',
+}
+
+/** Form labels, for notes like "Filled Team, Sport". */
+export const fieldName = (field: string) => FIELD_NAMES[field] ?? field
+

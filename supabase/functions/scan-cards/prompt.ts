@@ -136,3 +136,18 @@ Then call record_card once with every field:
 - Follow the same rules as the first reading for set_name, insert_name and parallel (no year or color in the set name; "" for base).
 - Never guess to fill a gap. An honest still_uncertain is more useful to the collector than a confident wrong answer.`
 }
+
+/** Manual entry: no photos, just what the collector typed. Fill in the rest from the checklist. */
+export function identifyInstructions(typed: Record<string, unknown>): string {
+  const given = Object.entries(typed).filter(([, v]) => v !== '' && v != null && v !== false)
+  return `No photos this time. The collector is typing in a card by hand and has entered:
+${JSON.stringify(Object.fromEntries(given), null, 2)}
+
+Find this card's checklist entry (Beckett, Trading Card Database, Cardboard Connection, Checklist Insider, the manufacturer) and fill in the rest: card number, team, sport, rookie status, and the insert or parallel details the entry shows. You have at most ${LOOKUP_MAX_SEARCHES} searches; stop as soon as you have an answer.
+
+Then call record_card once with every field:
+- Keep what the collector typed unless a source clearly shows it's wrong; if so, put the corrected value and say so in notes.
+- Without photos you can't know the copy in hand: leave serial_number null, and set is_auto, is_patch and is_relic only when every version of this checklist entry has them.
+- If the entry has several versions you can't tell apart (for example base and parallels sharing a number), fill what they share and list the rest in still_uncertain.
+- confirmed_fields: fields a source confirms. Never guess to fill a gap.`
+}

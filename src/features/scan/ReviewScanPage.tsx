@@ -19,6 +19,9 @@ import { CardForm } from '../cards/CardForm'
 import { CardPhotos } from '../cards/CardPhotos'
 import { toCardInput, type CardFormValues } from '../cards/cardSchema'
 import { buildSuggestions, rememberSport } from '../cards/suggestions'
+import { formatCost } from '../ai/costEstimate'
+import { lookupRequest, readRequest } from '../ai/requests'
+import { useAiApproval } from '../ai/useAiApproval'
 import { AI_MODELS, getAiModel } from './aiModel'
 import { asExtraction, extractionCost, fieldLabel, fieldNotes, sortForReview, type Extraction } from './extraction'
 import { rememberScanValues, scanFormValues } from './scanDefaults'
@@ -38,6 +41,7 @@ export function ReviewScanPage() {
   const deleteScan = useDeleteScan()
   const reread = useRereadScans()
   const lookup = useLookupScans()
+  const ai = useAiApproval()
   useScanPolling(scans)
 
   const index = scans.findIndex((s) => s.id === id)
@@ -62,6 +66,18 @@ export function ReviewScanPage() {
         </Link>
       </main>
     )
+  }
+
+  async function rereadWith(model: string) {
+    const ok = await ai.approve(readRequest(1, model, ai.estimate.read(1, model), ai.autoLookup))
+    if (ok) reread.mutate({ model, ids: [scan!.id] })
+  }
+
+  // The checklist pass runs on the model that read the card.
+  const lookupModel = extraction?.model ?? getAiModel()
+  async function lookUp() {
+    const ok = await ai.approve(lookupRequest(1, lookupModel, ai.estimate.lookup(1, lookupModel)))
+    if (ok) lookup.mutate([scan!.id])
   }
 
   async function handleSubmit(values: CardFormValues, { mergeInto }: { mergeInto?: Card }) {
@@ -93,9 +109,11 @@ export function ReviewScanPage() {
         extraction={extraction}
         cost={cost}
         busy={reread.isPending || lookup.isPending}
-        onReread={(model) => reread.mutate({ model, ids: [scan.id] })}
-        onLookup={() => lookup.mutate([scan.id])}
+        lookupCost={formatCost(ai.estimate.lookup(1, lookupModel).expected)}
+        onReread={(model) => void rereadWith(model)}
+        onLookup={() => void lookUp()}
       />
+      {ai.dialog}
       {(reread.error ?? lookup.error) && (
         <p className="mb-4 rounded-xl bg-red-950/60 px-3 py-2 text-sm text-red-300">
           {(reread.error ?? lookup.error)!.message}
@@ -125,6 +143,7 @@ type AiStatusProps = {
   extraction: Extraction | null
   cost: { dollars: number; model: string } | null
   busy: boolean
+  lookupCost: string
   onReread: (model: string) => void
   onLookup: () => void
 }
@@ -132,7 +151,7 @@ type AiStatusProps = {
 const callout = 'rounded-xl px-3 py-2 text-sm'
 
 /** What the AI made of this card, and ways to have it look again (another model, or the set's checklist). */
-function AiStatus({ scan, extraction: e, cost, busy, onReread, onLookup }: AiStatusProps) {
+function AiStatus({ scan, extraction: e, cost, busy, lookupCost, onReread, onLookup }: AiStatusProps) {
   const [model, setModel] = useState(getAiModel)
   const { status } = scan
   const lookup = e?.lookup
@@ -163,6 +182,12 @@ function AiStatus({ scan, extraction: e, cost, busy, onReread, onLookup }: AiSta
           missed, or retake the photo.
         </p>
       )}
+      {status === 'ready' && e?.triage === 'lookup' && !lookup && (
+        <p className={`${callout} bg-slate-900 text-slate-300`}>
+          The AI suggests checking the set’s checklist for {listFields(e.uncertain_fields) || 'this card'}. Automatic
+          checklist searches are off; use “Check checklist” below.
+        </p>
+      )}
       {lookup?.fields && <LookupResult extraction={e!} />}
       {lookup?.error && <p className={`${callout} bg-slate-900 text-slate-400`}>{lookup.error}</p>}
       {read(status) && e?.notes && <p className={`${callout} bg-slate-900 text-slate-300`}>{e.notes}</p>}
@@ -183,7 +208,7 @@ function AiStatus({ scan, extraction: e, cost, busy, onReread, onLookup }: AiSta
                 onClick={onLookup}
                 className="min-h-11 px-2 font-medium text-sky-400 disabled:opacity-50"
               >
-                Check checklist
+                Check checklist · ~{lookupCost}
               </button>
             )}
             <select

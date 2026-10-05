@@ -4,6 +4,8 @@ import { Icon } from '../../components/Icon'
 import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
 import { useCreateScans, useReadScans, type ScanUpload } from '../../hooks/useScans'
 import { cropCard, loadImage, type CardCrop } from '../../lib/photos'
+import { readRequest } from '../ai/requests'
+import { useAiApproval } from '../ai/useAiApproval'
 import { getAiModel } from './aiModel'
 import { cardSpots, initialOrder, swap, type CapturedPhoto, type CardSpot } from './captureState'
 import { CropPreview } from './CropPreview'
@@ -21,6 +23,8 @@ export function CapturePage() {
   const navigate = useNavigate()
   const createScans = useCreateScans()
   const readScans = useReadScans()
+  const ai = useAiApproval()
+  const [skippedAi, setSkippedAi] = useState(false)
   const [step, setStep] = useState<Step>('fronts')
   const [fronts, setFronts] = useState<CapturedPhoto[]>([])
   const [backs, setBacks] = useState<CapturedPhoto[]>([])
@@ -83,8 +87,11 @@ export function CapturePage() {
         setProgress({ done: items.length + start + done, total })
       },
     })
-    // Hand the new cards to the AI right away; if this fails, the inbox has a button to retry.
-    readScans.mutate({ model: getAiModel() })
+    // Hand the new cards to the AI (once approved); if this fails or is declined, the inbox has a button for it.
+    const model = getAiModel()
+    const ok = await ai.approve(readRequest(items.length, model, ai.estimate.read(items.length, model), ai.autoLookup))
+    if (ok) readScans.mutate({ model })
+    else setSkippedAi(true)
   }
 
   function reset() {
@@ -98,11 +105,13 @@ export function CapturePage() {
     setUploaded(0)
     createScans.reset()
     readScans.reset()
+    setSkippedAi(false)
   }
 
   if (createScans.isSuccess) {
     return (
       <Shell title="Scan cards" onCancel={() => navigate('/scan')}>
+        {ai.dialog}
         <section className={`${panel} flex flex-col items-center gap-4 px-6 py-10 text-center`}>
           <span className="grid size-14 place-items-center rounded-full bg-emerald-500/15 text-emerald-400">
             <Icon name="check" size={30} />
@@ -112,7 +121,9 @@ export function CapturePage() {
               {frontSpots.length} {frontSpots.length === 1 ? 'card' : 'cards'} added to your inbox
             </p>
             <p className="mt-1 text-sm text-slate-400">
-              {readScans.isError
+              {skippedAi
+                ? 'They haven’t been sent to the AI. Send them from the inbox when you’re ready.'
+                : readScans.isError
                 ? 'They couldn’t be sent to the AI yet; you can send them from the inbox.'
                 : 'The AI is reading them now. Review them whenever you’re ready.'}
             </p>
@@ -132,6 +143,7 @@ export function CapturePage() {
 
   return (
     <Shell title="Scan cards" onCancel={cancel}>
+      {ai.dialog}
       <ol className="mb-4 grid grid-cols-3 gap-2 text-center text-xs font-medium" aria-label="Steps">
         {(['fronts', 'backs', 'pairs'] as const).map((s, i) => (
           <li

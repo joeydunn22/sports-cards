@@ -3,18 +3,23 @@
 //   POST { action: "poll" } collects finished results into card_scans.extraction. Cards whose reading
 //     has a doubt a checklist can settle (see triage.ts) go out again, once, with web search.
 //   POST { action: "lookup", ids } runs that checklist pass on reviewed-ready cards on request.
+//   POST { action: "identify", model?, card } fills in a hand-typed card from its checklist, right away
+//     (not batched, since the collector is waiting on the form).
+// Every call's actual cost goes in public.ai_usage, which the app subtracts from the credit balance.
 // Runs as the signed-in user, so row-level security applies to every query.
 import Anthropic from 'npm:@anthropic-ai/sdk'
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import {
   EXTRACTION_SCHEMA,
   FIELDS,
+  identifyInstructions,
   LOOKUP_MAX_SEARCHES,
   lookupInstructions,
   RECORD_CARD_TOOL,
   systemPrompt,
   type KnownNames,
 } from './prompt.ts'
+import { usageDollars } from './pricing.ts'
 import { triage } from './triage.ts'
 
 const MODELS = ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5'] as const
@@ -31,6 +36,39 @@ const STUCK_LOOKUP_MS = 10 * 60_000
 type Scan = { id: string; front_image_path: string; back_image_path: string | null }
 type Reading = Record<string, unknown> & { model?: string; uncertain_fields?: string[] }
 type ScanWithReading = Scan & { extraction: Reading }
+type UsageRow = {
+  kind: 'read' | 'lookup' | 'identify'
+  model: string
+  searches: number
+  input_tokens: number
+  output_tokens: number
+  dollars: number
+}
+
+function usageRow(kind: UsageRow['kind'], message: Anthropic.Messages.Message, batch: boolean): UsageRow {
+  const u = message.usage
+  return {
+    kind,
+    model: message.model,
+    searches: u.server_tool_use?.web_search_requests ?? 0,
+    input_tokens: u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
+    output_tokens: u.output_tokens,
+    dollars: usageDollars(message.model, u, { batch }),
+  }
+}
+
+async function logUsage(supabase: SupabaseClient, rows: UsageRow[]) {
+  if (rows.length === 0) return
+  const { error } = await supabase.from('ai_usage').insert(rows)
+  // The work itself succeeded; a missing log line only makes the balance estimate a bit optimistic.
+  if (error) console.error('ai_usage insert failed', error)
+}
+
+/** Falls back to the app_settings column default for a collector who never opened the settings. */
+async function autoLookup(supabase: SupabaseClient): Promise<boolean> {
+  const { data } = await supabase.from('app_settings').select('auto_lookup').maybeSingle()
+  return data?.auto_lookup ?? true
+}
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -67,6 +105,9 @@ Deno.serve(async (req) => {
     }
     if (body.action === 'poll') return json(await poll(supabase, anthropic))
     if (body.action === 'lookup' && ids) return json(await requestLookups(supabase, anthropic, ids))
+    if (body.action === 'identify' && body.card && typeof body.card === 'object') {
+      return json(await identify(supabase, anthropic, isModel(body.model) ? body.model : DEFAULT_MODEL, body.card))
+    }
     return json({ error: 'Unknown action.' }, 400)
   } catch (err) {
     console.error(err)
@@ -125,6 +166,8 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
   let updated = 0
   let stillProcessing = 0
   const toLookUp: ScanWithReading[] = []
+  const spent: UsageRow[] = []
+  const lookUpNow = scans.some((s) => s.status === 'processing') ? await autoLookup(supabase) : false
   for (const batchId of batchIds) {
     const batch = await anthropic.messages.batches.retrieve(batchId)
     if (batch.processing_status !== 'ended') {
@@ -133,6 +176,9 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
     }
     for await (const result of await anthropic.messages.batches.results(batchId)) {
       const scan = byId.get(result.custom_id)
+      if (result.result.type === 'succeeded') {
+        spent.push(usageRow(scan?.status === 'looking_up' ? 'lookup' : 'read', result.result.message, true))
+      }
       if (!scan) continue // reviewed or deleted meanwhile
       if (scan.status === 'looking_up') {
         const update = toLookupUpdate(result, scan.extraction as Reading)
@@ -147,7 +193,8 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
         const update = toScanUpdate(result)
         const next = update.status === 'ready' ? triage(update.extraction as Reading) : null
         if (next) update.extraction = { ...update.extraction, triage: next }
-        if (next === 'lookup') Object.assign(update, { status: 'looking_up', batch_id: null })
+        // With automatic lookups off, the card waits in review with a "Check checklist" button instead.
+        if (next === 'lookup' && lookUpNow) Object.assign(update, { status: 'looking_up', batch_id: null })
         // Claiming the row by its status means two polls at once can't both send its lookup.
         const { data: claimed, error: updateError } = await supabase
           .from('card_scans')
@@ -156,7 +203,7 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
           .eq('status', 'processing')
           .select('id')
         if (updateError) throw updateError
-        if (next === 'lookup' && claimed.length) {
+        if (next === 'lookup' && lookUpNow && claimed.length) {
           toLookUp.push({ ...scan, extraction: update.extraction as Reading })
         }
       }
@@ -164,6 +211,7 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
     }
   }
 
+  await logUsage(supabase, spent)
   if (toLookUp.length) await sendLookupsOrRelease(supabase, anthropic, toLookUp)
   return { updated, processing: stillProcessing + toLookUp.length }
 }
@@ -217,13 +265,7 @@ async function submitLookups(supabase: SupabaseClient, anthropic: Anthropic, sca
           system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
           ...thinking(model),
           ...(model === 'claude-haiku-4-5' ? {} : { output_config: effort(model) }),
-          tools: [
-            // Dynamic filtering trims search results before they reach the model; Haiku 4.5 predates it.
-            model === 'claude-haiku-4-5'
-              ? { type: 'web_search_20250305', name: 'web_search', max_uses: LOOKUP_MAX_SEARCHES }
-              : { type: 'web_search_20260209', name: 'web_search', max_uses: LOOKUP_MAX_SEARCHES },
-            RECORD_CARD_TOOL,
-          ],
+          tools: [searchTool(model), RECORD_CARD_TOOL],
           messages: [
             {
               role: 'user',
@@ -242,6 +284,50 @@ async function submitLookups(supabase: SupabaseClient, anthropic: Anthropic, sca
       scans.map((s) => s.id),
     )
   if (error) throw error
+}
+
+/** Fills in a hand-typed card from its checklist. Synchronous: the collector is waiting on the form. */
+async function identify(supabase: SupabaseClient, anthropic: Anthropic, model: Model, typed: Record<string, unknown>) {
+  const card = Object.fromEntries(FIELDS.filter((f) => f in typed).map((f) => [f, typed[f]]))
+  const system = systemPrompt(await knownNames(supabase))
+  const messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: identifyInstructions(card) }]
+  const spent: UsageRow[] = []
+  let message: Anthropic.Messages.Message | null = null
+  try {
+    // A long search turn can pause; sending it back continues it (a few times at most).
+    for (let turn = 0; turn < 3; turn++) {
+      message = await anthropic.messages.create({
+        model,
+        max_tokens: 16000,
+        system,
+        ...thinking(model),
+        ...(model === 'claude-haiku-4-5' ? {} : { output_config: { effort: 'low' } }),
+        tools: [searchTool(model), RECORD_CARD_TOOL],
+        messages,
+      } as unknown as Anthropic.Messages.MessageCreateParamsNonStreaming)
+      spent.push(usageRow('identify', message, false))
+      if (message.stop_reason !== 'pause_turn') break
+      messages.push({ role: 'assistant', content: message.content })
+    }
+  } finally {
+    await logUsage(supabase, spent)
+  }
+  const dollars = spent.reduce((sum, row) => sum + row.dollars, 0)
+  if (!message || message.stop_reason === 'refusal') return { error: 'The AI declined to look this card up.', dollars }
+  const call = message.content.find(
+    (block): block is Anthropic.Messages.ToolUseBlock => block.type === 'tool_use' && block.name === 'record_card',
+  )
+  if (!call) return { error: 'The checklist search didn’t find an answer.', dollars }
+  const input = call.input as Record<string, unknown>
+  return {
+    fields: Object.fromEntries(FIELDS.map((f) => [f, input[f]])),
+    confirmed: input.confirmed_fields ?? [],
+    still_uncertain: input.still_uncertain ?? [],
+    sources: sourcesFrom(message, input),
+    notes: input.notes ?? '',
+    dollars,
+    searches: spent.reduce((sum, row) => sum + row.searches, 0),
+  }
 }
 
 /** A lookup claimed but never sent stays on screen as its first reading rather than "checking" forever. */
@@ -304,18 +390,7 @@ function toLookupUpdate(result: Anthropic.Messages.MessageBatchIndividualRespons
   }
   const input = call.input as Record<string, unknown>
 
-  // Only keep links that really came back from a search, with their page titles.
-  const seen = new Map<string, string>()
-  for (const block of message.content as unknown as { type: string; content?: unknown }[]) {
-    if (block.type !== 'web_search_tool_result' || !Array.isArray(block.content)) continue
-    for (const hit of block.content as { url?: string; title?: string }[]) {
-      if (hit.url) seen.set(hit.url, hit.title ?? hit.url)
-    }
-  }
-  const sources = ((input.source_urls as string[] | undefined) ?? [])
-    .filter((url) => seen.has(url))
-    .slice(0, 3)
-    .map((url) => ({ url, title: seen.get(url) }))
+  const sources = sourcesFrom(message, input)
 
   const fields = Object.fromEntries(FIELDS.map((f) => [f, input[f]]))
   const changed = FIELDS.filter((f) => normalize(input[f]) !== normalize(reading[f]))
@@ -328,6 +403,28 @@ function toLookupUpdate(result: Anthropic.Messages.MessageBatchIndividualRespons
     sources,
     notes: input.notes ?? '',
   })
+}
+
+/** The links the model relied on, kept only if they really came back from a search, with their page titles. */
+function sourcesFrom(message: Anthropic.Messages.Message, input: Record<string, unknown>) {
+  const seen = new Map<string, string>()
+  for (const block of message.content as unknown as { type: string; content?: unknown }[]) {
+    if (block.type !== 'web_search_tool_result' || !Array.isArray(block.content)) continue
+    for (const hit of block.content as { url?: string; title?: string }[]) {
+      if (hit.url) seen.set(hit.url, hit.title ?? hit.url)
+    }
+  }
+  return ((input.source_urls as string[] | undefined) ?? [])
+    .filter((url) => seen.has(url))
+    .slice(0, 3)
+    .map((url) => ({ url, title: seen.get(url) }))
+}
+
+/** Dynamic filtering trims search results before they reach the model; Haiku 4.5 predates it. */
+function searchTool(model: Model) {
+  return model === 'claude-haiku-4-5'
+    ? { type: 'web_search_20250305', name: 'web_search', max_uses: LOOKUP_MAX_SEARCHES }
+    : { type: 'web_search_20260209', name: 'web_search', max_uses: LOOKUP_MAX_SEARCHES }
 }
 
 function failureReason(result: Anthropic.Messages.MessageBatchIndividualResponse): string {

@@ -7,6 +7,8 @@ export const AI_MODELS = [
 
 export type AiModel = (typeof AI_MODELS)[number]['id']
 
+export const modelLabel = (id: string) => AI_MODELS.find((m) => m.id === id)?.label ?? id
+
 const KEY = 'sports-cards:ai-model'
 
 export function getAiModel(): AiModel {

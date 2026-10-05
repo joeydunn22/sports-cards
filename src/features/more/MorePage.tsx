@@ -12,6 +12,7 @@ import {
 } from '../../hooks/usePasskeys'
 import { ImportExportSections } from '../import-export/ImportExportPage'
 import { AI_MODELS, getAiModel, setAiModel, type AiModel } from '../scan/aiModel'
+import { AiCreditSetting } from './AiCreditSetting'
 
 export function MorePage() {
   const { session } = useAuth()
@@ -22,6 +23,8 @@ export function MorePage() {
       <ImportExportSections />
 
       <AiModelSetting />
+
+      <AiCreditSetting />
 
       <PasskeySetting />
 

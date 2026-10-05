@@ -4,6 +4,7 @@ import { demoScans, IS_DEMO } from '../dev/demo'
 import { photoPath, thumbPath, type CardCrop } from '../lib/photos'
 import { supabase } from '../lib/supabase'
 import type { Card, CardInput, CardScan } from '../types/card'
+import { AI_USAGE_KEY } from './useAiSpend'
 import { CARDS_KEY } from './useCards'
 import { currentUserId, removePhotos, uploadPhoto } from './usePhotos'
 
@@ -88,7 +89,10 @@ export function useScanPolling(scans: CardScan[]) {
   })
   const updated = poll.data?.updated ?? 0
   useEffect(() => {
-    if (updated > 0) void queryClient.invalidateQueries({ queryKey: SCANS_KEY })
+    if (updated > 0) {
+      void queryClient.invalidateQueries({ queryKey: SCANS_KEY })
+      void queryClient.invalidateQueries({ queryKey: AI_USAGE_KEY })
+    }
   }, [poll.dataUpdatedAt, updated, queryClient])
   return poll
 }
@@ -187,5 +191,26 @@ export function useConfirmScan() {
       queryClient.setQueryData<Card[]>(CARDS_KEY, (old) => (old ? [card, ...old] : old))
       queryClient.setQueryData<CardScan[]>(SCANS_KEY, (old) => old?.filter((s) => s.id !== scan.id))
     },
+  })
+}
+
+export type IdentifyResult = {
+  fields?: Record<string, unknown>
+  confirmed?: string[]
+  still_uncertain?: string[]
+  sources?: { url: string; title?: string }[]
+  notes?: string
+  error?: string
+  dollars?: number
+  searches?: number
+}
+
+/** Fills in a hand-typed card from its checklist (the AI searches the web; takes up to a minute). */
+export function useIdentifyCard() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ model, card }: { model: string; card: Record<string, unknown> }) =>
+      callScanFunction<IdentifyResult>({ action: 'identify', model, card }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: AI_USAGE_KEY }),
   })
 }

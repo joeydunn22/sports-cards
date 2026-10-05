@@ -88,4 +88,24 @@ describe('CardForm', () => {
     expect(onSubmit.mock.calls[0][1]).toEqual({ addAnother: true, mergeInto: existing })
     expect(await screen.findByText(/Added to quantity/)).toBeInTheDocument()
   })
+
+  it('fills team and sport from the player’s other cards when Player is left', async () => {
+    const existing = makeCard({ player: 'Connor Bedard', team: 'Chicago Blackhawks', sport: 'Hockey' })
+    render(
+      <CardForm
+        mode="new"
+        initialValues={emptyCardForm}
+        suggestions={{}}
+        autofillFrom={[existing]}
+        onSubmit={vi.fn()}
+      />,
+    )
+    const user = userEvent.setup()
+    await user.type(input(/^Player/), 'connor bedard')
+    await user.tab()
+    expect(input(/^Team/).value).toBe('Chicago Blackhawks')
+    expect(input(/^Sport/).value).toBe('Hockey')
+    expect(screen.getByText('Filled Team, Sport from your other Connor Bedard cards.')).toBeInTheDocument()
+  })
 })
+

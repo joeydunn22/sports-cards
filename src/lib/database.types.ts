@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          cards: number
+          created_at: string
+          dollars: number
+          id: string
+          input_tokens: number | null
+          kind: string
+          model: string
+          output_tokens: number | null
+          searches: number
+          user_id: string
+        }
+        Insert: {
+          cards?: number
+          created_at?: string
+          dollars: number
+          id?: string
+          input_tokens?: number | null
+          kind: string
+          model: string
+          output_tokens?: number | null
+          searches?: number
+          user_id?: string
+        }
+        Update: {
+          cards?: number
+          created_at?: string
+          dollars?: number
+          id?: string
+          input_tokens?: number | null
+          kind?: string
+          model?: string
+          output_tokens?: number | null
+          searches?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      app_settings: {
+        Row: {
+          auto_lookup: boolean
+          confirm_ai_runs: boolean
+          credit_dollars: number | null
+          credit_set_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_lookup?: boolean
+          confirm_ai_runs?: boolean
+          credit_dollars?: number | null
+          credit_set_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          auto_lookup?: boolean
+          confirm_ai_runs?: boolean
+          credit_dollars?: number | null
+          credit_set_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       card_scans: {
         Row: {
           back_image_path: string | null

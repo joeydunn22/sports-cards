@@ -156,7 +156,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - The list view shows cards on mobile and a sortable table on desktop. Filters cover sport, year, set, insert, parallel, player, team, the boolean flags, graded and serial-numbered.
 - Edits are optimistic through TanStack Query, and deletes need a confirmation.
 
-## Current status (updated 2026-10-04)
+## Current status (updated 2026-10-05)
 - **Live app:** https://joeydunn22.github.io/sports-cards/
 - **Repo:** https://github.com/joeydunn22/sports-cards (public; GitHub user `joeydunn22`).
 - **Supabase project ref:** `algnikifgctzpkwplvtq` (URL `https://algnikifgctzpkwplvtq.supabase.co`).
@@ -177,7 +177,9 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
   - **Triage and checklist lookup (built 2026-10-04, untested with real cards):** after the first reading, `triage.ts` in the function sorts each card into ready, lookup, retake or unidentified. Only "lookup" cards (a specific doubt, with enough read to search by) get one web-search pass (max 3 searches, about 1¢ each); the result goes in `extraction.lookup`. A lookup never repeats. Retakes, unidentified cards and lookups that leave the identity open go to the inbox's "Needs you" section; the inbox warns when many cards land there, since that points to the photos. My instruction: the unsure bucket must not become a dumping ground.
   - Not built yet: adding or replacing photos on an existing card.
 - **Duplicate detection (built 2026-10-04):** `duplicates.ts`. The form flags a card already in the collection; on save, a plain extra copy offers "Add to it" (quantity) and a same serial/cert asks before saving twice. Graded and numbered copies stay separate rows.
-- **Face ID sign-in (built 2026-10-04):** Supabase Auth passkeys (`usePasskeys.ts`); set up from More, used from the login screen. Needs the dashboard setting Authentication → Passkeys turned on (RP ID `joeydunn22.github.io`, origin `https://joeydunn22.github.io`). Check with me that it's on and working.
+- **Face ID sign-in (built 2026-10-04):** Supabase Auth passkeys (`usePasskeys.ts`); set up from More, used from the login screen. Passkeys are enabled in the dashboard (RP ID `joeydunn22.github.io`, confirmed 2026-10-05). Ask whether setting it up on my iPhone worked.
+- **AI spending (built 2026-10-05):** every AI action goes through `useAiApproval` (cost estimate dialog; "Ask before AI runs" can be turned off on More, but a run that could exceed the credit left always asks). The function logs each call's actual cost to `ai_usage`; More shows credit left = the balance I enter from the Console minus logged spend (Anthropic has no balance API, and its cost Admin API isn't open to individual accounts). Settings live in `app_settings` (also `auto_lookup`: automatic checklist searches after reading). Estimates in `costEstimate.ts` start from typical figures and switch to my own averages after 5 runs.
+- **Manual-entry fill-in (built 2026-10-05):** leaving Player, Year, Set or Card # fills blanks for free from matching cards in my collection (`autofill.ts`); "Look up details with AI" runs the function's `identify` action (instant, full price, about 7¢), fills blanks and shows disagreements with a "Use it" button rather than overwriting.
 
 ## Roadmap
 - **Phase 0: Setup (done).** Git repo, Vite scaffold, Tailwind, oxlint, Supabase project plus the first migration with RLS, email + password login (account created in the dashboard, sign-ups disabled), the GitHub Pages deploy workflow, and the Supabase keep-alive workflow.

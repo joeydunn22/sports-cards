@@ -5,6 +5,9 @@ import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
 import { NO_SCANS, useReadScans, useScanPolling, useScans } from '../../hooks/useScans'
 import type { CardScan } from '../../types/card'
 import { CardThumb } from '../cards/CardThumb'
+import { formatCost } from '../ai/costEstimate'
+import { readRequest } from '../ai/requests'
+import { useAiApproval } from '../ai/useAiApproval'
 import { getAiModel } from './aiModel'
 import { asExtraction, inboxSection, needsYouReason, sortForReview, type InboxSection } from './extraction'
 
@@ -27,6 +30,7 @@ export function ScanPage() {
   const { data, isPending, error } = useScans()
   const scans = data ?? NO_SCANS
   const readScans = useReadScans()
+  const ai = useAiApproval()
   useScanPolling(scans)
   const pending = scans.filter((s) => s.status === 'pending').length
   const processing = scans.filter((s) => s.status === 'processing' || s.status === 'looking_up').length
@@ -36,9 +40,16 @@ export function ScanPage() {
   const done = needsYou + bySection('ready').length
   const photoTrouble = needsYou >= PHOTO_TROUBLE.minCards && needsYou / done >= PHOTO_TROUBLE.share
 
+  async function readPending() {
+    const model = getAiModel()
+    const ok = await ai.approve(readRequest(pending, model, ai.estimate.read(pending, model), ai.autoLookup))
+    if (ok) readScans.mutate({ model })
+  }
+
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 md:pt-6">
       <PageHeader title="Scan cards" />
+      {ai.dialog}
 
       <Link to="/scan/new" className={`${buttonPrimary} min-h-14 text-base`}>
         <Icon name="camera" size={20} /> Photograph cards
@@ -55,10 +66,12 @@ export function ScanPage() {
         <button
           type="button"
           disabled={readScans.isPending}
-          onClick={() => readScans.mutate({ model: getAiModel() })}
+          onClick={() => void readPending()}
           className={`${buttonSecondary} min-h-12`}
         >
-          {readScans.isPending ? 'Sending…' : `Read ${pending} ${pending === 1 ? 'card' : 'cards'} with AI`}
+          {readScans.isPending
+            ? 'Sending…'
+            : `Read ${pending} ${pending === 1 ? 'card' : 'cards'} with AI · ~${formatCost(ai.estimate.read(pending, getAiModel()).expected)}`}
         </button>
       )}
       {readScans.isError && (

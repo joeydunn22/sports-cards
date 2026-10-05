@@ -8,7 +8,9 @@ import { buttonPrimary, buttonSecondary, panel, sectionTitle } from '../../compo
 import type { Card } from '../../types/card'
 import { cardFormSchema, stickyForm, toCardInput, type CardFormValues } from './cardSchema'
 import { cardTitle, setNameWarning } from './cardText'
+import { fieldName, fillFromCollection, mergeLookup, type LookupMerge } from './autofill'
 import { DuplicateNotice, DuplicatePrompt } from './DuplicateNotice'
+import { LookupPanel, type LookupOutcome } from './LookupPanel'
 import { findDuplicates, type DuplicateMatch } from './duplicates'
 
 export type SuggestionField =
@@ -50,6 +52,10 @@ type CardFormProps = {
   fieldNotes?: Partial<Record<keyof CardFormValues, string>>
   /** The collection, to flag cards already in it. `askOnSave` offers to merge plain extra copies. */
   duplicates?: { cards: Card[]; excludeId?: string; askOnSave: boolean }
+  /** Fill blank fields from matching cards in the collection when Player, Year, Set or Card # is left. */
+  autofillFrom?: Card[]
+  /** "Look up details": an AI checklist search that fills in blanks (`costLabel` is its estimate). */
+  lookUp?: { costLabel: string; run: (values: CardFormValues) => Promise<LookupOutcome> }
 }
 
 type PendingSave = { values: CardFormValues; addAnother: boolean; match: DuplicateMatch }
@@ -63,6 +69,8 @@ export function CardForm({
   submitLabel = 'Save changes',
   fieldNotes = {},
   duplicates,
+  autofillFrom,
+  lookUp,
 }: CardFormProps) {
   const {
     register,
@@ -71,11 +79,17 @@ export function CardForm({
     setValue,
     reset,
     setFocus,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<CardFormValues>({ resolver: zodResolver(cardFormSchema), defaultValues: initialValues })
   const [status, setStatus] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [pending, setPending] = useState<PendingSave | null>(null)
   const [saving, setSaving] = useState(false)
+  const [filledNote, setFilledNote] = useState<string | null>(null)
+  const [lookupBusy, setLookupBusy] = useState(false)
+  const [lookupResult, setLookupResult] = useState<{ outcome: LookupOutcome; merge: LookupMerge | null } | null>(
+    null,
+  )
 
   // Success toasts fade out on their own; errors stay until the next save attempt.
   useEffect(() => {
@@ -124,6 +138,8 @@ export function CardForm({
         const title = cardTitle(toCardInput(formValues))
         setStatus({ kind: 'ok', text: mergeInto ? `Added to quantity: ${title}` : `Saved: ${title}` })
         reset(stickyForm(formValues))
+        setFilledNote(null)
+        setLookupResult(null)
         window.scrollTo({ top: 0 })
         setFocus('player')
       }
@@ -150,11 +166,43 @@ export function CardForm({
     })
   const busy = isSubmitting || saving
 
+  function apply(values: Partial<CardFormValues>) {
+    for (const [field, value] of Object.entries(values)) {
+      setValue(field as keyof CardFormValues, value as never, { shouldDirty: true })
+    }
+  }
+
+  // Free: fill blanks from the collection when an identifying field is left.
+  function autofill() {
+    if (!autofillFrom) return
+    const fill = fillFromCollection(getValues(), autofillFrom)
+    if (!fill) return
+    apply(fill.values)
+    setFilledNote(`Filled ${fill.fields.map(fieldName).join(', ')} from ${fill.source}.`)
+  }
+
+  async function runLookUp() {
+    if (!lookUp) return
+    setLookupBusy(true)
+    try {
+      const outcome = await lookUp.run(getValues())
+      if (!outcome) return // cancelled at the cost prompt
+      const merge = outcome.found ? mergeLookup(getValues(), outcome.found) : null
+      if (merge) apply(merge.values)
+      setLookupResult({ outcome, merge })
+    } catch (err) {
+      setLookupResult({ outcome: { error: err instanceof Error ? err.message : 'The lookup failed.' }, merge: null })
+    } finally {
+      setLookupBusy(false)
+    }
+  }
+
   function textInput(
     name: TextFieldName,
     props: InputHTMLAttributes<HTMLInputElement> & { list?: SuggestionField } = {},
   ) {
-    const { list, ...rest } = props
+    const { list, onBlur, ...rest } = props
+    const field = register(name)
     return (
       <input
         id={name}
@@ -163,7 +211,11 @@ export function CardForm({
         className={inputClass}
         aria-invalid={errors[name] ? true : undefined}
         {...rest}
-        {...register(name)}
+        {...field}
+        onBlur={(e) => {
+          void field.onBlur(e)
+          onBlur?.(e)
+        }}
       />
     )
   }
@@ -206,7 +258,12 @@ export function CardForm({
             warning={fieldNotes.player}
             className="col-span-2"
           >
-            {textInput('player', { list: 'player', autoCapitalize: 'words', autoFocus: mode === 'new' })}
+            {textInput('player', {
+              list: 'player',
+              autoCapitalize: 'words',
+              autoFocus: mode === 'new',
+              onBlur: autofill,
+            })}
           </Field>
           <Field
             label="Year"
@@ -216,7 +273,7 @@ export function CardForm({
             warning={fieldNotes.year}
             hint="e.g. 2023 or 2023-24"
           >
-            {textInput('year', { list: 'year' })}
+            {textInput('year', { list: 'year', onBlur: autofill })}
           </Field>
           <Field
             label="Card #"
@@ -225,7 +282,7 @@ export function CardForm({
             error={errors.card_number?.message}
             warning={fieldNotes.card_number}
           >
-            {textInput('card_number', { autoCapitalize: 'characters' })}
+            {textInput('card_number', { autoCapitalize: 'characters', onBlur: autofill })}
           </Field>
           <Field
             label="Set"
@@ -236,7 +293,7 @@ export function CardForm({
             hint="The product, no year or color: Topps Finest, Bowman Chrome, Panini Prizm"
             className="col-span-2"
           >
-            {textInput('set_name', { list: 'set_name', autoCapitalize: 'words' })}
+            {textInput('set_name', { list: 'set_name', autoCapitalize: 'words', onBlur: autofill })}
           </Field>
           <Field label="Sport" htmlFor="sport" required error={errors.sport?.message} warning={fieldNotes.sport}>
             {textInput('sport', { list: 'sport', autoCapitalize: 'words' })}
@@ -245,6 +302,22 @@ export function CardForm({
             {textInput('team', { list: 'team', autoCapitalize: 'words' })}
           </Field>
         </div>
+        {filledNote && <p className="mt-3 text-xs text-emerald-300">{filledNote}</p>}
+        {lookUp && (
+          <LookupPanel
+            costLabel={lookUp.costLabel}
+            canRun={Boolean(player.trim() && (setName.trim() || cardNumber.trim()))}
+            busy={lookupBusy}
+            result={lookupResult}
+            onRun={() => void runLookUp()}
+            onUse={(field, value) => {
+              apply({ [field]: value })
+              setLookupResult((r) =>
+                r?.merge ? { ...r, merge: { ...r.merge, conflicts: r.merge.conflicts.filter((c) => c.field !== field) } } : r,
+              )
+            }}
+          />
+        )}
       </FormSection>
 
       <FormSection title="Version">
