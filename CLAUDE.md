@@ -42,12 +42,13 @@ src/
       cardSchema.ts    form values, Zod schema, toCardInput/fromCard, sticky fields
       cardText.ts      cardTitle(), setNameWarning()
       collection.ts    filterCards(), distinctValues(), summarize(), isSold()
+      duplicates.ts    findDuplicates(): same card already in the collection (DuplicateNotice.tsx shows it)
       suggestions.ts   per-field autocomplete lists, last-used sport
       useCardTable.ts  TanStack Table columns and sort options
       CardForm, NewCardPage, EditCardPage, CollectionPage,
       CardTable (CardTable + CardList), FilterPanel, CardBadges (.tsx)
     import-export/ cardCsv.ts (CSV <-> cards, validation), ImportExportPage.tsx (sections shown on More)
-    scan/          captureState.ts (photos -> card spots, pairing), extraction.ts (AI reading -> form, cost),
+    scan/          captureState.ts (photos -> card spots, pairing), extraction.ts (AI reading + lookup -> form, cost, inbox sections),
                    scanDefaults.ts, aiModel.ts, CapturePage, PhotoStep, CropPreview, ScanPage (inbox), ReviewScanPage
     more/          MorePage: import/export, AI model choice, sign out
   lib/
@@ -56,7 +57,7 @@ src/
     csv.ts         RFC 4180 parse/serialize and download helper
     format.ts      formatSerial(), formatMoney()
     cardDetect.ts  finds cards in a photo (pure, tested); photos.ts decodes, crops and compresses in the browser
-  hooks/           useAuth, useCards, useScans (inbox, upload, AI submit/poll), usePhotos (signed URLs, upload),
+  hooks/           useAuth, usePasskeys (Face ID), useCards, useScans (inbox, upload, AI submit/poll), usePhotos (signed URLs, upload),
                    useSessionState
   dev/             demo.ts: dev-only `?demo` mode with sample cards, for checking the UI without logging in
   types/           domain types (Card, CardInput) derived from DB types
@@ -64,7 +65,8 @@ src/
 supabase/
   migrations/      numbered SQL migrations; the source of truth for the schema
   functions/
-    scan-cards/    Edge Function: sends inbox photos to Claude as a Message Batch and stores the readings.
+    scan-cards/    Edge Function: sends inbox photos to Claude as a Message Batch and stores the readings;
+                   triage.ts decides which cards get one checklist web-search pass (tested by Vitest).
                    Deploy with `npx supabase functions deploy scan-cards --use-api` (no Docker needed).
 .github/
   workflows/
@@ -154,7 +156,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - The list view shows cards on mobile and a sortable table on desktop. Filters cover sport, year, set, insert, parallel, player, team, the boolean flags, graded and serial-numbered.
 - Edits are optimistic through TanStack Query, and deletes need a confirmation.
 
-## Current status (updated 2026-10-03)
+## Current status (updated 2026-10-04)
 - **Live app:** https://joeydunn22.github.io/sports-cards/
 - **Repo:** https://github.com/joeydunn22/sports-cards (public; GitHub user `joeydunn22`).
 - **Supabase project ref:** `algnikifgctzpkwplvtq` (URL `https://algnikifgctzpkwplvtq.supabase.co`).
@@ -172,7 +174,10 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
   - Built: the bottom-tab UI; capture (fronts, then backs, automatic card finding or a chosen grid, pairing, cropping, upload); the inbox; AI reading through the `scan-cards` function; review with AI notes and cost per card; a model choice on More and "Read again" on each card for comparing models.
   - Claude can't sign in, so the function is verified only to reject requests without a login. The first real run may surface API errors; the inbox shows the error text.
   - Next with me: the Phase 1 phone test, then the roughly 20-card AI test (photos with 9, 6 and 4 cards and one card at a time; Sonnet vs others), then tune detection and the prompt.
-  - Not built yet: a checklist web-search pass for cards the AI flags with `needs_lookup`; adding or replacing photos on an existing card.
+  - **Triage and checklist lookup (built 2026-10-04, untested with real cards):** after the first reading, `triage.ts` in the function sorts each card into ready, lookup, retake or unidentified. Only "lookup" cards (a specific doubt, with enough read to search by) get one web-search pass (max 3 searches, about 1¢ each); the result goes in `extraction.lookup`. A lookup never repeats. Retakes, unidentified cards and lookups that leave the identity open go to the inbox's "Needs you" section; the inbox warns when many cards land there, since that points to the photos. My instruction: the unsure bucket must not become a dumping ground.
+  - Not built yet: adding or replacing photos on an existing card.
+- **Duplicate detection (built 2026-10-04):** `duplicates.ts`. The form flags a card already in the collection; on save, a plain extra copy offers "Add to it" (quantity) and a same serial/cert asks before saving twice. Graded and numbered copies stay separate rows.
+- **Face ID sign-in (built 2026-10-04):** Supabase Auth passkeys (`usePasskeys.ts`); set up from More, used from the login screen. Needs the dashboard setting Authentication → Passkeys turned on (RP ID `joeydunn22.github.io`, origin `https://joeydunn22.github.io`). Check with me that it's on and working.
 
 ## Roadmap
 - **Phase 0: Setup (done).** Git repo, Vite scaffold, Tailwind, oxlint, Supabase project plus the first migration with RLS, email + password login (account created in the dashboard, sign-ups disabled), the GitHub Pages deploy workflow, and the Supabase keep-alive workflow.
@@ -189,9 +194,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
   - **Test before scanning the collection:** about 20 tricky cards in toploaders, shot 9, 6 and 4 per photo and one at a time, each run with and without search. Compare errors and cost to choose the layout. I'm happy to iterate.
 - **Phase 3: Valuation.** A value dashboard (total, by sport and by player, top cards). Then evaluate a pricing source (SportsCardsPro/PriceCharting API is the leading candidate; eBay sold-comps data is restricted). Calls go through a Supabase Edge Function, and value history goes in a `price_history` table.
 - **Phase 4: eBay listing.** Connect eBay through OAuth via an Edge Function, using the eBay Sell Inventory API. Create a listing from a card, prefilling the title from the card's fields and attaching its photos. Track the listing status on the card (add status columns at that point).
-- **Ideas to explore soon** (I'll bring these up; not decided yet):
-  - **No login screen.** Use the app without typing a password while keeping the data private. Options to weigh: passkeys (Face ID), a long-lived remembered session, or a device-bound sign-in. The data must stay private either way, and the site is public.
-- **Later ideas:** tracking fields (storage location, tags, notes, want list), bulk edit, duplicate detection.
+- **Later ideas:** tracking fields (storage location, tags, notes, want list), bulk edit, a collection view of existing duplicates.
 
 ## Working conventions for Claude
 - Stay inside this project folder. Sibling folders, such as other projects in the same parent directory, are unrelated: don't read, search or edit them.
