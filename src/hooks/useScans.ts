@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { IS_DEMO } from '../dev/demo'
+import { demoScans, IS_DEMO } from '../dev/demo'
 import { photoPath, thumbPath, type CardCrop } from '../lib/photos'
 import { supabase } from '../lib/supabase'
 import type { Card, CardInput, CardScan } from '../types/card'
@@ -15,7 +15,7 @@ export function useScans() {
   return useQuery({
     queryKey: SCANS_KEY,
     queryFn: async () => {
-      if (IS_DEMO) return NO_SCANS
+      if (IS_DEMO) return demoScans
       const { data, error } = await supabase
         .from('card_scans')
         .select('*')
@@ -66,10 +66,19 @@ export function useRereadScans() {
   })
 }
 
-/** While any card is being read, check for results every so often and refresh the inbox. */
+/** Runs the checklist search on cards already read (once per card), e.g. when the collector wants a second look. */
+export function useLookupScans() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (ids: string[]) => callScanFunction<{ submitted: number }>({ action: 'lookup', ids }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: SCANS_KEY }),
+  })
+}
+
+/** While any card is being read or looked up, check for results every so often and refresh the inbox. */
 export function useScanPolling(scans: CardScan[]) {
   const queryClient = useQueryClient()
-  const processing = scans.some((s) => s.status === 'processing')
+  const processing = scans.some((s) => s.status === 'processing' || s.status === 'looking_up')
   const poll = useQuery({
     queryKey: ['scan-poll'],
     enabled: processing && !IS_DEMO,

@@ -12,7 +12,9 @@ const LAST_VALUES_KEY = 'sports-cards:last-scan-values'
 export function scanFormValues(scan: CardScan): CardFormValues {
   const extraction = asExtraction(scan.extraction)
   const base = carriedOver()
-  return extraction && scan.status === 'ready' ? extractionToForm(extraction, base) : base
+  // While the checklist search runs, the first reading is already worth showing.
+  const read = scan.status === 'ready' || scan.status === 'looking_up'
+  return extraction && read ? extractionToForm(extraction, base) : base
 }
 
 function carriedOver(): CardFormValues {

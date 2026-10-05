@@ -6,14 +6,21 @@ import { NO_SCANS, useReadScans, useScanPolling, useScans } from '../../hooks/us
 import type { CardScan } from '../../types/card'
 import { CardThumb } from '../cards/CardThumb'
 import { getAiModel } from './aiModel'
-import { asExtraction } from './extraction'
+import { asExtraction, inboxSection, needsYouReason, sortForReview, type InboxSection } from './extraction'
 
-const STATUS: Record<CardScan['status'], { label: string; className: string }> = {
-  pending: { label: 'Not read by the AI yet', className: 'text-slate-400' },
-  processing: { label: 'Reading…', className: 'text-sky-300' },
-  ready: { label: 'Ready to review', className: 'text-emerald-300' },
-  failed: { label: 'Couldn’t read: fill in by hand', className: 'text-amber-300' },
-}
+const SECTIONS: { id: InboxSection; title: string; hint?: string }[] = [
+  { id: 'ready', title: 'Ready to save' },
+  {
+    id: 'needs-you',
+    title: 'Needs you',
+    hint: 'The AI couldn’t settle these. Retake the photo, or fill in what it missed.',
+  },
+  { id: 'reading', title: 'With the AI' },
+  { id: 'unread', title: 'Not read yet' },
+]
+
+/** When this many of the cards read so far need the collector, the photos are the likely problem. */
+const PHOTO_TROUBLE = { minCards: 3, share: 0.4 }
 
 /** Scan inbox: cards photographed but not yet confirmed. */
 export function ScanPage() {
@@ -22,7 +29,12 @@ export function ScanPage() {
   const readScans = useReadScans()
   useScanPolling(scans)
   const pending = scans.filter((s) => s.status === 'pending').length
-  const processing = scans.filter((s) => s.status === 'processing').length
+  const processing = scans.filter((s) => s.status === 'processing' || s.status === 'looking_up').length
+  const sorted = sortForReview(scans)
+  const bySection = (id: InboxSection) => sorted.filter((s) => inboxSection(s) === id)
+  const needsYou = bySection('needs-you').length
+  const done = needsYou + bySection('ready').length
+  const photoTrouble = needsYou >= PHOTO_TROUBLE.minCards && needsYou / done >= PHOTO_TROUBLE.share
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 md:pt-6">
@@ -35,7 +47,7 @@ export function ScanPage() {
       {processing > 0 && (
         <p className="flex items-center gap-2 rounded-xl bg-sky-950/60 px-3 py-2 text-sm text-sky-200">
           <span className="size-2 shrink-0 animate-pulse rounded-full bg-sky-400" />
-          The AI is reading {processing} {processing === 1 ? 'card' : 'cards'}. Usually a few minutes; this page
+          The AI is working on {processing} {processing === 1 ? 'card' : 'cards'}. Usually a few minutes; this page
           updates by itself.
         </p>
       )}
@@ -72,36 +84,71 @@ export function ScanPage() {
             </p>
           </div>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {scans.map((scan, i) => {
-              const read = scan.status === 'ready' ? asExtraction(scan.extraction) : null
+          <div className="flex flex-col gap-5">
+            {photoTrouble && (
+              <p className="rounded-xl bg-amber-950/60 px-3 py-2 text-sm text-amber-200">
+                The AI couldn’t settle {needsYou} of {done} cards. That usually points to the photos rather than the
+                cards: glare through the toploaders, or too many cards per shot. Try fewer cards per photo, tilted away
+                from the light.
+              </p>
+            )}
+            {SECTIONS.map(({ id, title, hint }) => {
+              const items = bySection(id)
+              if (items.length === 0) return null
               return (
-                <li key={scan.id}>
-                  <Link
-                    to={`/scan/${scan.id}`}
-                    className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-2.5 pr-3 active:bg-slate-800"
-                  >
-                    <CardThumb path={scan.front_image_path} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold">{read?.player || `Card ${i + 1}`}</p>
-                      {read && (
-                        <p className="truncate text-sm text-slate-400">
-                          {[read.year, read.set_name, read.parallel].filter(Boolean).join(' ')}
-                        </p>
-                      )}
-                      <p className={`truncate text-sm ${STATUS[scan.status].className}`}>
-                        {STATUS[scan.status].label}
-                      </p>
-                      {!scan.back_image_path && <p className="text-xs text-slate-500">No back photo</p>}
-                    </div>
-                    <Icon name="back" size={18} className="rotate-180 text-slate-500" />
-                  </Link>
-                </li>
+                <div key={id} className="flex flex-col gap-2">
+                  <div className="flex items-baseline justify-between">
+                    <h3 className="text-sm font-semibold text-slate-300">{title}</h3>
+                    <span className="text-sm text-slate-500">{items.length}</span>
+                  </div>
+                  {hint && <p className="-mt-1 text-xs text-slate-500">{hint}</p>}
+                  <ul className="flex flex-col gap-2">
+                    {items.map((scan) => (
+                      <li key={scan.id}>
+                        <ScanRow scan={scan} section={id} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )
             })}
-          </ul>
+          </div>
         )}
       </section>
     </main>
+  )
+}
+
+function ScanRow({ scan, section }: { scan: CardScan; section: InboxSection }) {
+  const read = asExtraction(scan.extraction)
+  const title = read?.lookup?.fields?.player || read?.player
+  const detail = read && section !== 'unread' ? [read.year, read.set_name, read.parallel].filter(Boolean).join(' ') : ''
+  const status =
+    section === 'needs-you'
+      ? { text: needsYouReason(scan), className: 'text-amber-300' }
+      : section === 'reading'
+        ? {
+            text: scan.status === 'looking_up' ? 'Checking the set’s checklist…' : 'Reading…',
+            className: 'text-sky-300',
+          }
+        : section === 'unread'
+          ? { text: 'Not read by the AI yet', className: 'text-slate-400' }
+          : read?.lookup?.fields
+            ? { text: 'Checked against the checklist', className: 'text-emerald-300' }
+            : null
+  return (
+    <Link
+      to={`/scan/${scan.id}`}
+      className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-2.5 pr-3 active:bg-slate-800"
+    >
+      <CardThumb path={scan.front_image_path} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold">{title || 'Unknown card'}</p>
+        {detail && <p className="truncate text-sm text-slate-400">{detail}</p>}
+        {status && <p className={`truncate text-sm ${status.className}`}>{status.text}</p>}
+        {!scan.back_image_path && <p className="text-xs text-slate-500">No back photo</p>}
+      </div>
+      <Icon name="back" size={18} className="rotate-180 text-slate-500" />
+    </Link>
   )
 }

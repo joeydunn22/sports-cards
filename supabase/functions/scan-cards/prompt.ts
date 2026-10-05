@@ -83,3 +83,56 @@ Be honest about how you know each field:
 - notes: one short sentence on anything the collector should know, or "".
 Fill every field with your best reading even when unsure, and flag it rather than leaving it blank.`
 }
+
+/** The checklist pass answers by calling this tool once; its input is the corrected card. */
+export const RECORD_CARD_TOOL = {
+  name: 'record_card',
+  description:
+    'Record the card details after checking the checklist. Call exactly once, at the end, with every field filled.',
+  strict: true,
+  input_schema: {
+    type: 'object',
+    properties: {
+      ...Object.fromEntries(FIELDS.map((f) => [f, EXTRACTION_SCHEMA.properties[f]])),
+      confirmed_fields: {
+        type: 'array',
+        items: { type: 'string', enum: FIELDS },
+        description: 'Fields a checklist or listing you found confirms.',
+      },
+      still_uncertain: {
+        type: 'array',
+        items: { type: 'string', enum: FIELDS },
+        description: 'Fields the search did not settle.',
+      },
+      source_urls: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'URLs of the search results you relied on (at most 3).',
+      },
+      notes: { type: 'string', description: 'One short sentence for the collector: what the search found, or "".' },
+    },
+    required: [...FIELDS, 'confirmed_fields', 'still_uncertain', 'source_urls', 'notes'],
+    additionalProperties: false,
+  },
+} as const
+
+/** Searches allowed per card. Each costs 1¢, plus the tokens of the pages it returns. */
+export const LOOKUP_MAX_SEARCHES = 3
+
+export function lookupInstructions(reading: Record<string, unknown>): string {
+  const doubts = (reading.uncertain_fields as string[] | undefined)?.join(', ') || 'none listed'
+  return `A first reading of this card (photos above) left some doubt. Check it against the set's checklist.
+
+First reading:
+${JSON.stringify(Object.fromEntries(FIELDS.map((f) => [f, reading[f]])), null, 2)}
+Unsure about: ${doubts}
+Note from the first reading: ${reading.notes || '(none)'}
+
+Search for the card's checklist entry (Beckett, Trading Card Database, Cardboard Connection, Checklist Insider, the manufacturer) or completed listings, using what was read with confidence, such as "2023 Topps Finest Ohtani 12" or the set name plus the card number. You have at most ${LOOKUP_MAX_SEARCHES} searches; stop as soon as you have an answer.
+
+Then call record_card once with every field:
+- Change a field only when a source and the photos agree. A checklist lists what exists; the photos show which one this is. For a parallel, the color and serial numbering in the photo must match the checklist's description.
+- Keep the first reading where the search finds nothing better, and list those fields in still_uncertain if they were unsure before.
+- Follow the same rules as the first reading for set_name, insert_name and parallel (no year or color in the set name; "" for base).
+- Never guess to fill a gap. An honest still_uncertain is more useful to the collector than a confident wrong answer.`
+}

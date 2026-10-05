@@ -1,5 +1,5 @@
 import type { Session } from '@supabase/supabase-js'
-import type { Card } from '../types/card'
+import type { Card, CardScan } from '../types/card'
 
 /**
  * Dev-only demo mode for checking the UI without a real account: open the dev server with `?demo`
@@ -47,3 +47,43 @@ export const demoCards: Card[] = [
   { ...base, id: 'd5', player: 'Elly De La Cruz', year: '2024', set_name: 'Topps Chrome', card_number: 'USC1', team: 'Reds', insert_name: 'Update Rookie Patch', is_patch: true, is_auto: true, serial_number: 12, print_run: 50 },
   { ...base, id: 'd6', player: 'Julio Rodríguez', year: '2022', set_name: 'Topps Heritage', card_number: '650', team: 'Mariners', is_rookie: true },
 ]
+
+const usage = { input_tokens: 5200, output_tokens: 900, cache_read_input_tokens: 2400 }
+const scan = (id: string, status: string, extraction: object | null): CardScan => ({
+  id,
+  user_id: 'demo',
+  front_image_path: `demo/${id}-front.webp`,
+  back_image_path: `demo/${id}-back.webp`,
+  status,
+  extraction: extraction as CardScan['extraction'],
+  error: status === 'failed' ? 'The AI’s answer was incomplete. Try reading it again.' : null,
+  batch_id: null,
+  created_at: '2026-10-04T00:00:00Z',
+  updated_at: '2026-10-04T00:00:00Z',
+})
+const reading = {
+  sport: 'Baseball', team: '', insert_name: '', parallel: '', is_rookie: false, is_auto: false, is_patch: false,
+  is_relic: false, serial_number: null, print_run: null, inferred_fields: [], uncertain_fields: [], needs_lookup: false,
+  retake: '', notes: '', model: 'claude-sonnet-5-5', usage,
+}
+
+/** One scan in each inbox state, for checking the inbox and review screens. */
+export const demoScans: CardScan[] = [
+  scan('s1', 'ready', { ...reading, triage: 'ready', player: 'Gunnar Henderson', year: '2023', set_name: 'Topps', card_number: '18', is_rookie: true }),
+  scan('s2', 'ready', {
+    ...reading, triage: 'lookup', player: 'Corbin Carroll', year: '2023', set_name: 'Topps Chrome', card_number: '150',
+    parallel: 'Refractor', uncertain_fields: ['set_name', 'parallel'], inferred_fields: ['year'], needs_lookup: true,
+    lookup: {
+      fields: { ...reading, player: 'Corbin Carroll', year: '2023', set_name: 'Bowman Chrome', card_number: '150', parallel: 'Refractor' },
+      changed: ['set_name'], confirmed: ['set_name', 'year', 'card_number'], still_uncertain: ['parallel'],
+      sources: [{ url: 'https://www.beckett.com/news/2023-bowman-chrome-baseball-cards/', title: '2023 Bowman Chrome Baseball Checklist' }],
+      notes: 'Card #150 in 2023 Bowman Chrome is Corbin Carroll; the refractor finish can’t be confirmed from the photo.',
+      model: 'claude-sonnet-5-5', usage: { input_tokens: 21000, output_tokens: 1400 }, searches: 2,
+    },
+  }),
+  scan('s3', 'looking_up', { ...reading, triage: 'lookup', player: 'Jackson Chourio', year: '2024', set_name: 'Topps', card_number: '?', uncertain_fields: ['card_number'], needs_lookup: true }),
+  scan('s4', 'ready', { ...reading, triage: 'retake', player: 'Bobby Witt Jr.', year: '2022', set_name: 'Topps Chrome', card_number: '1', retake: 'Glare hides the serial number on the back; tilt the toploader away from the light and retake.' }),
+  scan('s5', 'ready', { ...reading, triage: 'unidentified', player: 'Unknown', year: '2021', set_name: '', card_number: '', uncertain_fields: ['player', 'set_name', 'card_number'], notes: 'The front is mostly glare.' }),
+  scan('s6', 'pending', null),
+]
+
