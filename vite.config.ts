@@ -42,5 +42,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     // Form tests type with user-event, which can exceed the 5s default when every file runs in parallel.
     testTimeout: 20_000,
+    // Placeholders so modules that create the Supabase client load in CI; tests never reach the network.
+    env: { VITE_SUPABASE_URL: 'http://localhost:54321', VITE_SUPABASE_PUBLISHABLE_KEY: 'test-key' },
   },
 })
