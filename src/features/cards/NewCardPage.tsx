@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { PageHeader } from '../../components/PageHeader'
 import { NO_CARDS, useAddQuantity, useCards, useCreateCard } from '../../hooks/useCards'
+import { NO_ENTRIES, useChecklist } from '../../hooks/useChecklist'
 import type { Card } from '../../types/card'
 import { CardForm } from './CardForm'
 import { emptyCardForm, toCardInput, type CardFormValues } from './cardSchema'
@@ -10,6 +11,9 @@ import { buildSuggestions, getLastSport, rememberSport } from './suggestions'
 export function NewCardPage() {
   const { data } = useCards()
   const cards = data ?? NO_CARDS
+  const { data: checklist = NO_ENTRIES } = useChecklist()
+  // Your own cards first (newest first), then what checklist searches have learned.
+  const known = useMemo(() => [...cards, ...checklist], [cards, checklist])
   const createCard = useCreateCard()
   const addQuantity = useAddQuantity()
   const navigate = useNavigate()
@@ -35,7 +39,7 @@ export function NewCardPage() {
         initialValues={initialValues}
         suggestions={suggestions}
         duplicates={{ cards, askOnSave: true }}
-        autofillFrom={cards}
+        autofillFrom={known}
         onSubmit={handleSubmit}
       />
     </main>

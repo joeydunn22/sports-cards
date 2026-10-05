@@ -119,14 +119,14 @@ export const RECORD_CARD_TOOL = {
 /** Searches allowed per card. Each costs 1¢, plus the tokens of the pages it returns. */
 export const LOOKUP_MAX_SEARCHES = 3
 
-export function lookupInstructions(reading: Record<string, unknown>): string {
+export function lookupInstructions(reading: Record<string, unknown>, hint = ''): string {
   const doubts = (reading.uncertain_fields as string[] | undefined)?.join(', ') || 'none listed'
   return `A first reading of this card (photos above) left some doubt. Check it against the set's checklist.
 
 First reading:
 ${JSON.stringify(Object.fromEntries(FIELDS.map((f) => [f, reading[f]])), null, 2)}
 Unsure about: ${doubts}
-Note from the first reading: ${reading.notes || '(none)'}
+Note from the first reading: ${reading.notes || '(none)'}${hint ? `\n${hint} Use it as a lead, and confirm the rest against the photos and a source.` : ''}
 
 Search for the card's checklist entry (Beckett, Trading Card Database, Cardboard Connection, Checklist Insider, the manufacturer) or completed listings, using what was read with confidence, such as "2023 Topps Finest Ohtani 12" or the set name plus the card number. You have at most ${LOOKUP_MAX_SEARCHES} searches; stop as soon as you have an answer.
 

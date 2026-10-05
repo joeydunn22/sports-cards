@@ -66,7 +66,8 @@ supabase/
   migrations/      numbered SQL migrations; the source of truth for the schema
   functions/
     scan-cards/    Edge Function: sends inbox photos to Claude as a Message Batch and stores the readings;
-                   triage.ts decides which cards get one checklist web-search pass (tested by Vitest).
+                   triage.ts decides which cards get one checklist pass, cache.ts settles them from the card
+                   database first, pricing.ts logs costs (all tested by Vitest).
                    Deploy with `npx supabase functions deploy scan-cards --use-api` (no Docker needed).
 .github/
   workflows/
@@ -179,6 +180,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - **Duplicate detection (built 2026-10-04):** `duplicates.ts`. The form flags a card already in the collection; on save, a plain extra copy offers "Add to it" (quantity) and a same serial/cert asks before saving twice. Graded and numbered copies stay separate rows.
 - **Face ID sign-in (built 2026-10-04):** Supabase Auth passkeys (`usePasskeys.ts`); set up from More, used from the login screen. Passkeys are enabled in the dashboard (RP ID `joeydunn22.github.io`, confirmed 2026-10-05). Ask whether setting it up on my iPhone worked.
 - **AI spending (built 2026-10-05):** every AI action goes through `useAiApproval` (cost estimate dialog; "Ask before AI runs" can be turned off on More, but a run that could exceed the credit left always asks). The function logs each call's actual cost to `ai_usage`; More shows credit left = the balance I enter from the Console minus logged spend (Anthropic has no balance API, and its cost Admin API isn't open to individual accounts). Settings live in `app_settings` (also `auto_lookup`: automatic checklist searches after reading). Estimates in `costEstimate.ts` start from typical figures and switch to my own averages after 5 runs.
+- **Card database / checklist cache (built 2026-10-05, my choice over imported checklists or a paid API):** `checklist_entries`, one row per checklist spot (year + set + insert + card #). A trigger on `cards` keeps it in step with saved cards (trusted, source `collection`); checklist searches that settle a card's identity add `search` rows, never overriding a saved card. Before any checklist web search, the function tries `cache.ts`: if the cache answers every doubt, the card is settled free; otherwise the matching entry goes into the search prompt as a hint. Add card's free fill-in uses it too. More shows its size.
 - **Manual-entry fill-in (built 2026-10-05; AI lookup button removed at my request, since I expect little manual entry):** leaving Player, Year, Set or Card # fills blanks for free from matching cards in my collection (`autofill.ts`).
 
 ## Roadmap

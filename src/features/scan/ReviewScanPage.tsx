@@ -252,8 +252,11 @@ function LookupResult({ extraction: e }: { extraction: Extraction }) {
   return (
     <div className={`${callout} flex flex-col gap-1 border border-emerald-900/60 bg-emerald-950/30 text-slate-300`}>
       <p className="font-medium text-emerald-200">
-        Checked against the checklist
-        {lookup.searches ? ` (${lookup.searches} ${lookup.searches === 1 ? 'search' : 'searches'})` : ''}
+        {lookup.cached
+          ? 'Matched your card database (free, no web search)'
+          : `Checked against the checklist${
+              lookup.searches ? ` (${lookup.searches} ${lookup.searches === 1 ? 'search' : 'searches'})` : ''
+            }`}
       </p>
       {changed.length > 0 && <p>Corrected: {changed.map(fieldLabel).join(', ')}. The fields below show the changes.</p>}
       {changed.length === 0 && <p>No changes to the AI’s reading.</p>}

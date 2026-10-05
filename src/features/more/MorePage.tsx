@@ -12,6 +12,7 @@ import {
 } from '../../hooks/usePasskeys'
 import { ImportExportSections } from '../import-export/ImportExportPage'
 import { AI_MODELS, getAiModel, setAiModel, type AiModel } from '../scan/aiModel'
+import { NO_ENTRIES, useChecklist } from '../../hooks/useChecklist'
 import { AiCreditSetting } from './AiCreditSetting'
 
 export function MorePage() {
@@ -25,6 +26,8 @@ export function MorePage() {
       <AiModelSetting />
 
       <AiCreditSetting />
+
+      <CardDatabase />
 
       <PasskeySetting />
 
@@ -130,6 +133,25 @@ function PasskeySetting() {
       ) : (
         <p className="text-sm text-slate-500">This browser doesn’t support passkeys.</p>
       )}
+    </section>
+  )
+}
+
+/** The self-building checklist cache, so it's visible that it grows. */
+function CardDatabase() {
+  const { data: entries = NO_ENTRIES } = useChecklist()
+  const fromSearches = entries.filter((e) => e.source === 'search').length
+  return (
+    <section className={`${panel} flex flex-col gap-1 p-4`}>
+      <h2 className="text-lg font-semibold">Card database</h2>
+      <p className="text-sm text-slate-300">
+        {entries.length} checklist {entries.length === 1 ? 'spot' : 'spots'} known: {entries.length - fromSearches} from
+        your cards, {fromSearches} from AI checklist searches.
+      </p>
+      <p className="text-sm text-slate-400">
+        It fills itself as you save cards and the AI settles unsure ones. Scanned cards that match it are settled for
+        free, without a web search, and it fills in blanks when you add a card by hand.
+      </p>
     </section>
   )
 }

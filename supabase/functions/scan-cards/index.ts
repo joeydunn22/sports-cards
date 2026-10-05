@@ -16,6 +16,7 @@ import {
   systemPrompt,
   type KnownNames,
 } from './prompt.ts'
+import { cacheHint, entryFromSearch, findSpot, resolveFromCache, type Entry } from './cache.ts'
 import { usageDollars } from './pricing.ts'
 import { triage } from './triage.ts'
 
@@ -59,6 +60,24 @@ async function logUsage(supabase: SupabaseClient, rows: UsageRow[]) {
   const { error } = await supabase.from('ai_usage').insert(rows)
   // The work itself succeeded; a missing log line only makes the balance estimate a bit optimistic.
   if (error) console.error('ai_usage insert failed', error)
+}
+
+/** The checklist cache (public.checklist_entries); small enough to load whole. */
+async function loadChecklist(supabase: SupabaseClient): Promise<Entry[]> {
+  const { data, error } = await supabase
+    .from('checklist_entries')
+    .select('year, set_name, insert_name, card_number, player, team, sport, is_rookie, source, source_url')
+  if (error) throw error
+  return data as Entry[]
+}
+
+/** Remembers checklist searches that settled a card. A spot already known (e.g. from a saved card) wins. */
+async function rememberSearches(supabase: SupabaseClient, entries: Entry[]) {
+  if (entries.length === 0) return
+  const { error } = await supabase
+    .from('checklist_entries')
+    .upsert(entries, { onConflict: 'user_id,spot_key', ignoreDuplicates: true })
+  if (error) console.error('checklist_entries upsert failed', error)
 }
 
 /** Falls back to the app_settings column default for a collector who never opened the settings. */
@@ -162,6 +181,9 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
   const toLookUp: ScanWithReading[] = []
   const spent: UsageRow[] = []
   const lookUpNow = scans.some((s) => s.status === 'processing') ? await autoLookup(supabase) : false
+  const learned: Entry[] = []
+  let checklist: Entry[] | null = null
+  const cached = async () => (checklist ??= await loadChecklist(supabase))
   for (const batchId of batchIds) {
     const batch = await anthropic.messages.batches.retrieve(batchId)
     if (batch.processing_status !== 'ended') {
@@ -183,12 +205,26 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
           .eq('id', scan.id)
           .eq('status', 'looking_up')
         if (updateError) throw updateError
+        const lookup = (update.extraction as { lookup?: Record<string, unknown> }).lookup
+        const entry = lookup?.fields
+          ? entryFromSearch(
+              lookup.fields as Record<string, unknown>,
+              (lookup.still_uncertain as string[]) ?? [],
+              (lookup.sources as { url: string }[] | undefined)?.[0]?.url ?? null,
+            )
+          : null
+        if (entry) learned.push(entry)
       } else {
         const update = toScanUpdate(result)
         const next = update.status === 'ready' ? triage(update.extraction as Reading) : null
         if (next) update.extraction = { ...update.extraction, triage: next }
         // With automatic lookups off, the card waits in review with a "Check checklist" button instead.
-        if (next === 'lookup' && lookUpNow) Object.assign(update, { status: 'looking_up', batch_id: null })
+        // Otherwise the checklist cache goes first: if it settles every doubt, no web search is needed.
+        if (next === 'lookup' && lookUpNow) {
+          const fromCache = resolveFromCache(update.extraction as Reading, await cached(), FIELDS)
+          if (fromCache) update.extraction = { ...update.extraction, lookup: fromCache }
+          else Object.assign(update, { status: 'looking_up', batch_id: null })
+        }
         // Claiming the row by its status means two polls at once can't both send its lookup.
         const { data: claimed, error: updateError } = await supabase
           .from('card_scans')
@@ -197,7 +233,7 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
           .eq('status', 'processing')
           .select('id')
         if (updateError) throw updateError
-        if (next === 'lookup' && lookUpNow && claimed.length) {
+        if (update.status === 'looking_up' && claimed.length) {
           toLookUp.push({ ...scan, extraction: update.extraction as Reading })
         }
       }
@@ -206,6 +242,7 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
   }
 
   await logUsage(supabase, spent)
+  await rememberSearches(supabase, learned)
   if (toLookUp.length) await sendLookupsOrRelease(supabase, anthropic, toLookUp)
   return { updated, processing: stillProcessing + toLookUp.length }
 }
@@ -222,8 +259,24 @@ async function requestLookups(supabase: SupabaseClient, anthropic: Anthropic, id
     .select('id, front_image_path, back_image_path, extraction')
   if (error) throw error
   const scans = data as ScanWithReading[]
-  if (scans.length) await sendLookupsOrRelease(supabase, anthropic, scans)
-  return { submitted: scans.length }
+  if (scans.length === 0) return { submitted: 0 }
+  // Cards the checklist cache can settle don't need a web search.
+  const checklist = await loadChecklist(supabase)
+  const toSearch: ScanWithReading[] = []
+  for (const scan of scans) {
+    const fromCache = resolveFromCache(scan.extraction, checklist, FIELDS)
+    if (!fromCache) {
+      toSearch.push(scan)
+      continue
+    }
+    const { error: updateError } = await supabase
+      .from('card_scans')
+      .update({ status: 'ready', extraction: { ...scan.extraction, lookup: fromCache } })
+      .eq('id', scan.id)
+    if (updateError) throw updateError
+  }
+  if (toSearch.length) await sendLookupsOrRelease(supabase, anthropic, toSearch)
+  return { submitted: toSearch.length, cached: scans.length - toSearch.length }
 }
 
 async function sendLookupsOrRelease(supabase: SupabaseClient, anthropic: Anthropic, scans: ScanWithReading[]) {
@@ -248,9 +301,11 @@ async function sendLookupsOrRelease(supabase: SupabaseClient, anthropic: Anthrop
 async function submitLookups(supabase: SupabaseClient, anthropic: Anthropic, scans: ScanWithReading[]) {
   const urls = await photoUrls(supabase, scans)
   const system = systemPrompt(await knownNames(supabase))
+  const checklist = await loadChecklist(supabase)
   const batch = await anthropic.messages.batches.create({
     requests: scans.map((scan) => {
       const model = isModel(scan.extraction.model) ? scan.extraction.model : DEFAULT_MODEL
+      const hint = cacheHint(findSpot(scan.extraction, checklist))
       return {
         custom_id: scan.id,
         params: {
@@ -263,7 +318,7 @@ async function submitLookups(supabase: SupabaseClient, anthropic: Anthropic, sca
           messages: [
             {
               role: 'user',
-              content: [...photoBlocks(scan, urls), { type: 'text', text: lookupInstructions(scan.extraction) }],
+              content: [...photoBlocks(scan, urls), { type: 'text', text: lookupInstructions(scan.extraction, hint) }],
             },
           ],
         },

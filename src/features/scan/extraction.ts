@@ -35,6 +35,8 @@ export type Lookup = {
   still_uncertain?: string[]
   sources?: { url: string; title?: string }[]
   notes?: string
+  /** Settled from the checklist cache instead of a web search (free). */
+  cached?: 'collection' | 'search'
   /** Set when the search didn't run or didn't finish; the first reading stands. */
   error?: string
   model?: string

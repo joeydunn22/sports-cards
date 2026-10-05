@@ -147,7 +147,10 @@ function ScanRow({ scan, section }: { scan: CardScan; section: InboxSection }) {
         : section === 'unread'
           ? { text: 'Not read by the AI yet', className: 'text-slate-400' }
           : read?.lookup?.fields
-            ? { text: 'Checked against the checklist', className: 'text-emerald-300' }
+            ? {
+                text: read.lookup.cached ? 'Matched your card database' : 'Checked against the checklist',
+                className: 'text-emerald-300',
+              }
             : null
   return (
     <Link

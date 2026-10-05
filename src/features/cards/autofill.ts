@@ -5,14 +5,20 @@ const norm = (value: string | null | undefined) => (value ?? '').toLowerCase().r
 
 export type Fill = { values: Partial<CardFormValues>; fields: string[]; source: string }
 
+/** A known checklist spot: a saved card, or an entry in the checklist cache (public.checklist_entries). */
+export type Spot = Pick<Card, 'player' | 'year' | 'set_name' | 'card_number' | 'team' | 'is_rookie'> & {
+  insert_name: string | null
+  sport: string | null
+}
+
 /**
- * Free fill-in from cards already in the collection, for fields still blank:
+ * Free fill-in from cards already in the collection (and the checklist cache), for fields still blank:
  * - same year, set and card number as an existing card (say, another parallel of it): player, team,
  *   sport, insert and RC;
  * - otherwise the same player: team and sport from their most recent card.
  * Never overwrites anything typed.
  */
-export function fillFromCollection(values: CardFormValues, cards: Card[]): Fill | null {
+export function fillFromCollection(values: CardFormValues, cards: Spot[]): Fill | null {
   const sameSpot =
     norm(values.card_number) && norm(values.set_name) && norm(values.year)
       ? cards.find(
@@ -40,7 +46,7 @@ export function fillFromCollection(values: CardFormValues, cards: Card[]): Fill 
 
 function fillBlanks(
   values: CardFormValues,
-  { card, fields, source }: { card: Card; fields: (keyof Card & keyof CardFormValues)[]; source: string },
+  { card, fields, source }: { card: Spot; fields: (keyof Spot & keyof CardFormValues)[]; source: string },
 ): Fill | null {
   const filled: Partial<CardFormValues> = {}
   for (const field of fields) {

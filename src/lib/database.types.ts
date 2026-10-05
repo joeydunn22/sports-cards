@@ -221,12 +221,75 @@ export type Database = {
         }
         Relationships: []
       }
+      checklist_entries: {
+        Row: {
+          card_number: string
+          created_at: string
+          id: string
+          insert_name: string
+          is_rookie: boolean
+          player: string
+          set_name: string
+          source: string
+          source_url: string | null
+          sport: string | null
+          spot_key: string | null
+          team: string | null
+          updated_at: string
+          user_id: string
+          year: string
+        }
+        Insert: {
+          card_number: string
+          created_at?: string
+          id?: string
+          insert_name?: string
+          is_rookie?: boolean
+          player: string
+          set_name: string
+          source: string
+          source_url?: string | null
+          sport?: string | null
+          spot_key?: string | null
+          team?: string | null
+          updated_at?: string
+          user_id?: string
+          year: string
+        }
+        Update: {
+          card_number?: string
+          created_at?: string
+          id?: string
+          insert_name?: string
+          is_rookie?: boolean
+          player?: string
+          set_name?: string
+          source?: string
+          source_url?: string | null
+          sport?: string | null
+          spot_key?: string | null
+          team?: string | null
+          updated_at?: string
+          user_id?: string
+          year?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      checklist_norm: { Args: { value: string }; Returns: string }
+      checklist_spot_key: {
+        Args: {
+          card_number: string
+          insert_name: string
+          set_name: string
+          year: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

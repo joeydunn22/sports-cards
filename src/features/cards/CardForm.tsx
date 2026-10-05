@@ -8,7 +8,7 @@ import { buttonPrimary, buttonSecondary, panel, sectionTitle } from '../../compo
 import type { Card } from '../../types/card'
 import { cardFormSchema, stickyForm, toCardInput, type CardFormValues } from './cardSchema'
 import { cardTitle, setNameWarning } from './cardText'
-import { fieldName, fillFromCollection } from './autofill'
+import { fieldName, fillFromCollection, type Spot } from './autofill'
 import { DuplicateNotice, DuplicatePrompt } from './DuplicateNotice'
 import { findDuplicates, type DuplicateMatch } from './duplicates'
 
@@ -52,7 +52,7 @@ type CardFormProps = {
   /** The collection, to flag cards already in it. `askOnSave` offers to merge plain extra copies. */
   duplicates?: { cards: Card[]; excludeId?: string; askOnSave: boolean }
   /** Fill blank fields from matching cards in the collection when Player, Year, Set or Card # is left. */
-  autofillFrom?: Card[]
+  autofillFrom?: Spot[]
 }
 
 type PendingSave = { values: CardFormValues; addAnother: boolean; match: DuplicateMatch }
