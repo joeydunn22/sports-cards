@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { emptyCardForm } from '../cards/cardSchema'
-import { asExtraction, extractionCost, extractionToForm, fieldNotes, inboxSection, needsYouReason } from './extraction'
+import {
+  asExtraction,
+  extractionCost,
+  extractionToForm,
+  fieldNotes,
+  inboxSection,
+  needsYouReason,
+  readUnnumbered,
+} from './extraction'
 
 describe('extractionToForm', () => {
   it('fills the form from the AI reading', () => {
@@ -132,5 +140,16 @@ describe('asExtraction', () => {
     expect(asExtraction(null)).toBeNull()
     expect(asExtraction([1])).toBeNull()
     expect(asExtraction({ player: 'A' })).toEqual({ player: 'A' })
+  })
+})
+
+describe('readUnnumbered', () => {
+  it('is true only when the AI found no serial number and had no doubt about it', () => {
+    expect(readUnnumbered({ serial_number: null, print_run: null })).toBe(true)
+    expect(readUnnumbered({ serial_number: 4, print_run: 5 })).toBe(false)
+    expect(readUnnumbered({ print_run: null, uncertain_fields: ['print_run'] })).toBe(false)
+    expect(readUnnumbered({})).toBe(false)
+    // The checklist search's answer wins.
+    expect(readUnnumbered({ print_run: null, lookup: { fields: { print_run: 99 } } })).toBe(false)
   })
 })

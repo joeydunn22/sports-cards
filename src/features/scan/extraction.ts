@@ -88,6 +88,13 @@ export function extractionToForm(extraction: Extraction, fallback: CardFormValue
   return values
 }
 
+/** The AI found no serial number and had no doubt about it (after any checklist search). */
+export function readUnnumbered(extraction: Extraction): boolean {
+  const e = { ...extraction, ...extraction.lookup?.fields }
+  const doubts = [...(extraction.uncertain_fields ?? []), ...(extraction.lookup?.still_uncertain ?? [])]
+  return e.print_run === null && !doubts.some((f) => f === 'print_run' || f === 'serial_number')
+}
+
 export type FieldNotes = Partial<Record<keyof CardFormValues, string>>
 
 const LABELS: Record<string, string> = {

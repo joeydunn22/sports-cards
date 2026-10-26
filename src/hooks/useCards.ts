@@ -120,6 +120,22 @@ export function useDeleteCard() {
   })
 }
 
+/** Respells a team on many cards at once ("Reds" to "Cincinnati Reds"). */
+export function useRenameTeams() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (fixes: { to: string; ids: string[] }[]) => {
+      for (const { to, ids } of fixes) {
+        for (let i = 0; i < ids.length; i += IMPORT_CHUNK) {
+          const { error } = await supabase.from('cards').update({ team: to }).in('id', ids.slice(i, i + IMPORT_CHUNK))
+          if (error) throw error
+        }
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: CARDS_KEY }),
+  })
+}
+
 const IMPORT_CHUNK = 500
 
 /** Rows with an id update that card (or create it with that id); rows without one are inserted. */

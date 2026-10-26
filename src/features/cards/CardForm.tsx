@@ -22,6 +22,7 @@ import { DuplicateNotice, DuplicatePrompt } from './DuplicateNotice'
 import { findDuplicates, type DuplicateMatch } from './duplicates'
 import { ParallelPicker } from './ParallelPicker'
 import {
+  cardNumbering,
   hasParallelList,
   matchParallel,
   parallelOptions,
@@ -32,6 +33,7 @@ import {
 import { QuickEntry, type QuickResult } from './QuickEntry'
 import { buildQuickContext, parseCardText } from './spokenCard'
 import { SetSection } from './SetSection'
+import { standardTeam } from './teams'
 import type { SetHelp } from '../sets/useSetHelp'
 
 /** How long the set fields rest before the form loads what's known about that set. */
@@ -76,6 +78,8 @@ type CardFormProps = {
   footer?: ReactNode
   /** Label for the single button in "edit" mode. */
   submitLabel?: string
+  /** A scan found no serial number: the parallel picker leads with the unnumbered parallels. */
+  unnumbered?: boolean
   /** Per-field notes shown as warnings, e.g. fields the AI was unsure about. */
   fieldNotes?: Partial<Record<keyof CardFormValues, string>>
   /** The collection, to flag cards already in it. `askOnSave` offers to merge plain extra copies. */
@@ -111,6 +115,7 @@ export function CardForm({
   onSubmit,
   footer,
   submitLabel = 'Save changes',
+  unnumbered = false,
   fieldNotes = {},
   duplicates,
   autofillFrom,
@@ -275,6 +280,8 @@ export function CardForm({
   const busy = isSubmitting || saving
 
   function apply(values: Partial<CardFormValues>) {
+    // A team from the checklist or the voice box comes in as the collection spells it ("Reds" is "Cincinnati Reds").
+    if (values.team) values = { ...values, team: teamName(values.team, { ...getValues(), ...values }) }
     for (const [field, value] of Object.entries(values)) {
       setValue(field as keyof CardFormValues, value as never, { shouldDirty: true })
     }
@@ -305,6 +312,16 @@ export function CardForm({
     if (notes.length) setFilledNote(notes.join(' '))
     if (known) filled.push(...fillParallel(known.parallels))
     return filled
+  }
+
+  function teamName(team: string, card: { year: string; sport: string }) {
+    return standardTeam(team, { year: card.year, sport: card.sport, known: suggestions.team })
+  }
+
+  function tidyTeam() {
+    const team = getValues('team')
+    const tidy = teamName(team, getValues())
+    if (tidy !== team) apply({ team: tidy })
   }
 
   async function refillParallel(options: { from?: 'parallel' | 'print_run' } = {}) {
@@ -508,7 +525,7 @@ export function CardForm({
             })}
           </Field>
           <Field label="Team" htmlFor="team" warning={fieldNotes.team}>
-            {textInput('team', { list: 'team', ...NAME_INPUT })}
+            {textInput('team', { list: 'team', ...NAME_INPUT, onBlur: tidyTeam })}
           </Field>
           {showNumbers && (
             <div className="col-span-2 flex flex-col gap-2 sm:col-span-4">
@@ -564,7 +581,12 @@ export function CardForm({
               onBlur: () => void refillParallel({ from: 'parallel' }),
             })}
           </Field>
-          <ParallelPicker options={rainbow} base={!parallel.trim()} onPick={pickParallel} />
+          <ParallelPicker
+            options={rainbow}
+            base={!parallel.trim()}
+            numbering={cardNumbering(printRun, unnumbered)}
+            onPick={pickParallel}
+          />
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-300">Serial numbered</span>
             <div className="flex items-center gap-2">

@@ -85,6 +85,7 @@ export const demoScans: CardScan[] = [
   scan('s4', 'ready', { ...reading, triage: 'retake', player: 'Bobby Witt Jr.', year: '2022', set_name: 'Topps Chrome', card_number: '1', retake: 'Glare hides the serial number on the back; tilt the toploader away from the light and retake.' }),
   scan('s5', 'ready', { ...reading, triage: 'unidentified', player: 'Unknown', year: '2021', set_name: '', card_number: '', uncertain_fields: ['player', 'set_name', 'card_number'], notes: 'The front is mostly glare.' }),
   scan('s6', 'pending', null),
+  scan('s7', 'ready', { ...reading, triage: 'ready', player: 'Billy Hamilton', year: '2011', set_name: 'Bowman Chrome Draft', card_number: 'BDPP71', team: 'CIN', serial_number: 12, print_run: 25 }),
 ]
 
 

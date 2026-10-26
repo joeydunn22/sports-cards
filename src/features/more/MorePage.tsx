@@ -15,12 +15,15 @@ import { ImportExportSections } from '../import-export/ImportExportPage'
 import { AI_MODELS, getAiModel, setAiModel, type AiModel } from '../scan/aiModel'
 import { NO_KNOWN_SETS, useKnownSets } from '../../hooks/useKnownSets'
 import { AiCreditSetting } from './AiCreditSetting'
+import { TeamNames } from './TeamNames'
 
 export function MorePage() {
   const { session } = useAuth()
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 md:pt-6">
       <PageHeader title="More" />
+
+      <TeamNames />
 
       <ImportExportSections />
 

@@ -19,11 +19,20 @@ import { CardForm } from '../cards/CardForm'
 import { CardPhotos } from '../cards/CardPhotos'
 import { toCardInput, type CardFormValues } from '../cards/cardSchema'
 import { buildSuggestions, rememberSport } from '../cards/suggestions'
+import { standardTeam } from '../cards/teams'
 import { formatCost } from '../ai/costEstimate'
 import { lookupRequest, readRequest } from '../ai/requests'
 import { useAiApproval } from '../ai/useAiApproval'
 import { AI_MODELS, getAiModel } from './aiModel'
-import { asExtraction, extractionCost, fieldLabel, fieldNotes, sortForReview, type Extraction } from './extraction'
+import {
+  asExtraction,
+  extractionCost,
+  fieldLabel,
+  fieldNotes,
+  readUnnumbered,
+  sortForReview,
+  type Extraction,
+} from './extraction'
 import { rememberScanValues, scanFormValues } from './scanDefaults'
 import { useParallelLookup } from '../sets/useParallelLookup'
 import { useSetHelp } from '../sets/useSetHelp'
@@ -54,7 +63,12 @@ export function ReviewScanPage() {
   const nextId = scans[index + 1]?.id ?? scans[index - 1]?.id
   const goNext = () => navigate(nextId ? `/scan/${nextId}` : '/scan', { replace: true })
   // The form only reads these when it mounts; its key changes when the AI result arrives.
-  const initialValues = useMemo(() => (scan ? scanFormValues(scan) : null), [scan])
+  // The AI's team comes in as the collection spells it ("Reds" is "Cincinnati Reds").
+  const initialValues = useMemo(() => {
+    if (!scan) return null
+    const values = scanFormValues(scan)
+    return { ...values, team: standardTeam(values.team, { ...values, known: suggestions.team }) }
+  }, [scan, suggestions.team])
   const extraction = scan ? asExtraction(scan.extraction) : null
   const read = scan?.status === 'ready' || scan?.status === 'looking_up'
   const notes = read && extraction ? fieldNotes(extraction) : {}
@@ -126,6 +140,7 @@ export function ReviewScanPage() {
       <CardForm
         key={`${scan.id}:${scan.updated_at}`}
         fieldNotes={notes}
+        unnumbered={read && extraction != null && readUnnumbered(extraction)}
         mode="edit"
         submitLabel={nextId ? 'Save & next' : 'Save card'}
         initialValues={initialValues}

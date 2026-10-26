@@ -131,3 +131,27 @@ export function parallelOptions(
 export function firstOptions(options: ParallelOption[], limit: number): ParallelOption[] {
   return options.filter((o, i) => i < limit || o.state != null)
 }
+
+/**
+ * The card's numbering, as far as the picker goes: the print run typed, 'none' when a scan found no
+ * serial number (and none is typed), or null when it isn't known yet.
+ */
+export type Numbering = number | 'none' | null
+
+export function cardNumbering(printRun: string, unnumbered: boolean): Numbering {
+  return parseRun(printRun) ?? (unnumbered && !printRun.trim() ? 'none' : null)
+}
+
+/**
+ * What the picker shows before "All". With the card's numbering known, only the parallels numbered the
+ * same way (Base counts as unnumbered); otherwise the first `limit`. The marked ones always show.
+ */
+export function shortlist(
+  options: ParallelOption[],
+  numbering: Numbering,
+  limit: number,
+): { options: ParallelOption[]; base: boolean } {
+  if (numbering == null) return { options: firstOptions(options, limit), base: true }
+  const fits = (o: ParallelOption) => (numbering === 'none' ? o.print_run == null : o.print_run === numbering)
+  return { options: options.filter((o) => fits(o) || o.state != null), base: numbering === 'none' }
+}

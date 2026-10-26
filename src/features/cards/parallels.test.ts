@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cardNumbering,
   firstOptions,
   hasParallelList,
   matchParallel,
   parallelOptions,
   parallelsFor,
   parallelSuggestions,
+  shortlist,
   type SetParallel,
 } from './parallels'
 
@@ -136,5 +138,23 @@ describe('parallelOptions', () => {
       'Printing Plate Black',
       'Superfractor',
     ])
+  })
+
+  it('shows only the parallels numbered like the card before "All"', () => {
+    const names = (values: typeof typed, unnumbered = false) => {
+      const short = shortlist(parallelOptions(rainbow, values), cardNumbering(values.print_run, unnumbered), 12)
+      return [short.base, short.options.map((o) => o.parallel)]
+    }
+    expect(names({ ...typed, print_run: '1' })).toEqual([false, ['Printing Plate Black', 'Superfractor']])
+    expect(names({ ...typed, print_run: '99' })).toEqual([false, []])
+    // A typed parallel that doesn't fit still shows, so the mismatch is visible.
+    expect(names({ ...typed, parallel: 'Gold Refractor', print_run: '5' })).toEqual([
+      false,
+      ['Gold Refractor', 'Red Refractor'],
+    ])
+    // A scan that found no serial number: only the unnumbered ones, and Base.
+    expect(names({ ...typed, print_run: '' }, true)).toEqual([true, ['Refractor']])
+    // Nothing known yet: the first ones, as before.
+    expect(names({ ...typed, print_run: '' })[1]).toHaveLength(6)
   })
 })

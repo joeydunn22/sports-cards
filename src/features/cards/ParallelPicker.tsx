@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { firstOptions, type ParallelOption } from './parallels'
+import { shortlist, type Numbering, type ParallelOption } from './parallels'
 
 /** Chips shown before "All": enough for most rainbows; 2025 Topps has about 70. */
 const SHOWN = 12
@@ -8,23 +8,31 @@ type ParallelPickerProps = {
   options: ParallelOption[]
   /** Parallel is blank: the base version, unless the print run points at a parallel. */
   base: boolean
+  /** The card's print run, or that it isn't numbered: only the parallels that fit show before "All". */
+  numbering: Numbering
   /** A chip was tapped: that parallel and its print run, or null for the base version. */
   onPick: (option: ParallelOption | null) => void
 }
 
 /** The set's rainbow under Parallel, one tap to fill the parallel and its print run. */
-export function ParallelPicker({ options, base, onPick }: ParallelPickerProps) {
+export function ParallelPicker({ options, base, numbering, onPick }: ParallelPickerProps) {
   const [all, setAll] = useState(false)
   if (!options.length) return null
-  const shown = all ? options : firstOptions(options, SHOWN)
+  const short = shortlist(options, numbering, SHOWN)
+  const shown = all ? options : short.options
+  // Base isn't numbered, but stays as the way back once a parallel is picked.
+  const showBase = all || short.base || !base
   const suggested = options.some((o) => o.state === 'suggested')
   return (
-    <div className="flex flex-wrap gap-2" aria-label="This set’s parallels">
-      <Chip label="Base" state={base && !suggested ? 'selected' : null} onClick={() => onPick(null)} />
+    <div className="flex flex-wrap items-center gap-2" aria-label="This set’s parallels">
+      {showBase && <Chip label="Base" state={base && !suggested ? 'selected' : null} onClick={() => onPick(null)} />}
       {shown.map((option) => (
         <Chip key={option.parallel} label={option.label} state={option.state} onClick={() => onPick(option)} />
       ))}
-      {shown.length < options.length && (
+      {!shown.length && typeof numbering === 'number' && (
+        <span className="text-sm text-slate-400">None listed as /{numbering}</span>
+      )}
+      {(shown.length < options.length || !showBase) && (
         <button
           type="button"
           onClick={() => setAll(true)}
