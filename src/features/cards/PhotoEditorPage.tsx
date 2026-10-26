@@ -6,8 +6,6 @@ import { useCards, useReplaceCardPhoto } from '../../hooks/useCards'
 import { usePhotoImage } from '../../hooks/usePhotos'
 import type { Pixels } from '../../lib/cardDetect'
 import {
-  DETECT_MAX_EDGE,
-  downscale,
   fillGlare,
   FULL_FRAME,
   findCardCorners,
@@ -29,10 +27,6 @@ const UNDO_LIMIT = 8
 
 /** `flat`: the photo is straightened to the card (saved with the `-flat` marker). */
 type Step = { pixels: Pixels; quad: Quad; flat: boolean }
-
-function suggestCorners(pixels: Pixels): Quad {
-  return findCardCorners(downscale(pixels, DETECT_MAX_EDGE))
-}
 
 const isFullFrame = (quad: Quad) => quad.every((p, i) => p.x === FULL_FRAME[i].x && p.y === FULL_FRAME[i].y)
 
@@ -76,7 +70,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
   const replace = useReplaceCardPhoto()
   const original = useMemo<Step>(() => {
     const pixels = imagePixels(image)
-    return { pixels, quad: suggestCorners(pixels), flat: isFlatPhoto(path) }
+    return { pixels, quad: findCardCorners(pixels), flat: isFlatPhoto(path) }
   }, [image, path])
   const [current, setCurrent] = useState<Step>(original)
   const [history, setHistory] = useState<Step[]>([])
@@ -204,7 +198,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
             <button
               type="button"
               disabled={busy}
-              onClick={() => setCurrent((c) => ({ ...c, quad: suggestCorners(c.pixels) }))}
+              onClick={() => setCurrent((c) => ({ ...c, quad: findCardCorners(c.pixels) }))}
               className={`${buttonSecondary} flex-1`}
             >
               Auto

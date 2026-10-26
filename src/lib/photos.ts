@@ -1,5 +1,5 @@
 import { detectCards, padBox, type Box, type Pixels } from './cardDetect'
-import { autoStraighten, CAPTURE_CUT_SHARE } from './photoEdit'
+import { autoStraighten } from './photoEdit'
 
 /**
  * Photo handling in the browser: decoding camera photos, finding cards in them, and cutting each card
@@ -91,7 +91,7 @@ export type CardCrop = { photo: EncodedImage; thumb: EncodedImage; flat: boolean
  */
 export async function cropCard(img: HTMLImageElement, box: Box): Promise<CardCrop> {
   const wide = canvasPixels(cut(img, padBox(box, STRAIGHTEN_MARGIN)))
-  const flat = autoStraighten(wide, PHOTO_MAX_EDGE, CAPTURE_CUT_SHARE)
+  const flat = autoStraighten(wide, PHOTO_MAX_EDGE)
   if (flat) return finishPhoto(drawPixels(flat), true)
   return finishPhoto(cut(img, padBox(box, CROP_MARGIN)), false)
 }

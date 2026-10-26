@@ -1,4 +1,5 @@
 import { borderMean, dilate, otsuThreshold, toGray, type Pixels } from './cardDetect'
+import { EDGE_MAX, findCardEdges } from './cardEdges'
 
 /**
  * Touch-up for a saved card photo, all in the browser: flattening a crooked card into an upright
@@ -107,11 +108,13 @@ function sample({ data, width, height }: Pixels, fx: number, fy: number, out: Ui
 }
 
 /**
- * Suggests the corners of the card in a one-card photo: the largest card-coloured region, and its
- * extreme points along the diagonals. The user nudges them; inside a toploader it may find the toploader.
+ * Suggests the corners of the card in a one-card photo for the user to nudge: its straight edges when they
+ * are found for sure (the toploader's, if it's in one), else the largest card-coloured region, else an inset frame.
  */
 export function findCardCorners(pixels: Pixels): Quad {
-  return detectCardCorners(pixels) ?? insetQuad(FALLBACK_INSET)
+  return (
+    findCardEdges(downscale(pixels, EDGE_MAX)) ?? detectCardCorners(downscale(pixels, DETECT_MAX_EDGE)) ?? insetQuad(FALLBACK_INSET)
+  )
 }
 
 /** The card's corners, or null when no card-sized region stands out from the background. */
@@ -317,16 +320,9 @@ function maskBounds(mask: Uint8Array, width: number, height: number) {
 // still goes through the before/after review on the touch-up page (except straightening at capture).
 
 /** Corner finding works on a small copy; more pixels don't help find four corners. */
-export const DETECT_MAX_EDGE = 400
-/**
- * Share of the photo a found card must cover. A saved crop is mostly card, so finding much less usually
- * means the artwork was found; a capture cut has generous margins on purpose and gets a lower bar.
- */
-export const SAVED_PHOTO_SHARE = 0.5
-export const CAPTURE_CUT_SHARE = 0.35
-/** Short side / long side of a plausible card: cards are 0.71, toploaders 0.75. */
-const MIN_CARD_RATIO = 0.6
-const MAX_CARD_RATIO = 0.85
+const DETECT_MAX_EDGE = 400
+/** A trim leaves this much (share of the card's size, each side) around the found edges, so it never clips them. */
+const SAFETY_MARGIN = 0.01
 /** Corners closer than this to the photo's corners mean it is already straight and tight. */
 const STRAIGHT_ENOUGH = 0.02
 
@@ -349,6 +345,11 @@ const SOFT_EDGE_LEVEL = 170
 const FADE_LEFT = 0.1
 /** How far out the fade is followed at most, as a share of the photo's long edge (keeps it quick). */
 const MAX_FADE = 0.08
+/**
+ * A fill can only look right where the surroundings are plain (a border, sky, a solid jersey): the colour spread
+ * (standard deviation of brightness) just outside the glare must stay under this, or the spot is left alone.
+ */
+const FLAT_SPREAD = 20
 
 export type TouchUpChange = 'straightened' | 'glare'
 
@@ -371,32 +372,30 @@ export function downscale(pixels: Pixels, maxEdge: number): Pixels {
   return { width, height, data }
 }
 
-/** Is this quad a believable card: convex, covering at least `minShare` of the photo, and card-shaped? */
-export function plausibleCard(quad: Quad, width: number, height: number, minShare = SAVED_PHOTO_SHARE): boolean {
-  const pts = quad.map((p) => ({ x: p.x * width, y: p.y * height }))
-  const turns = pts.map((a, i) => {
-    const b = pts[(i + 1) % 4]
-    const c = pts[(i + 2) % 4]
-    return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
-  })
-  if (!turns.every((t) => t > 0) && !turns.every((t) => t < 0)) return false
-  if (quadArea(pts) < minShare * width * height) return false
-  const size = outputSize(quad, width, height, Infinity)
-  const ratio = Math.min(size.width, size.height) / Math.max(size.width, size.height)
-  return ratio >= MIN_CARD_RATIO && ratio <= MAX_CARD_RATIO
-}
-
 /** Does straightening to this quad change anything worth keeping? */
 export function needsStraighten(quad: Quad): boolean {
   return quad.some((p, i) => Math.hypot(p.x - FULL_FRAME[i].x, p.y - FULL_FRAME[i].y) >= STRAIGHT_ENOUGH)
 }
 
-/** The photo flattened to the card, or null when no card is found for sure or it is already straight. */
-export function autoStraighten(pixels: Pixels, maxEdge: number, minShare = SAVED_PHOTO_SHARE): Pixels | null {
-  const quad = detectCardCorners(downscale(pixels, DETECT_MAX_EDGE))
-  if (!quad || !plausibleCard(quad, pixels.width, pixels.height, minShare) || !needsStraighten(quad)) return null
+/**
+ * The photo trimmed and flattened to the card (or the toploader around it), or null when its four edges
+ * aren't found for sure or the photo is already tight and straight.
+ */
+export function autoStraighten(pixels: Pixels, maxEdge: number): Pixels | null {
+  const found = findCardEdges(downscale(pixels, EDGE_MAX))
+  if (!found) return null
+  const quad = growQuad(found, SAFETY_MARGIN)
+  if (!needsStraighten(quad)) return null
   const size = outputSize(quad, pixels.width, pixels.height, maxEdge)
   return warpPerspective(pixels, quad, size.width, size.height)
+}
+
+/** Corners moved out from the middle by `share` of the quad's size each way, kept inside the photo. */
+export function growQuad(quad: Quad, share: number): Quad {
+  const cx = quad.reduce((s, p) => s + p.x, 0) / 4
+  const cy = quad.reduce((s, p) => s + p.y, 0) / 4
+  const clamp = (v: number) => Math.min(1, Math.max(0, v))
+  return quad.map((p) => ({ x: clamp(cx + (p.x - cx) * (1 + 2 * share)), y: clamp(cy + (p.y - cy) * (1 + 2 * share)) })) as Quad
 }
 
 /** A mask of the clear glare spots in a photo (for `fillGlare`), or null when there are none. Conservative on purpose. */
@@ -428,7 +427,7 @@ export function findGlare(pixels: Pixels): Uint8Array | null {
     if (x0 < band || y0 < band || x1 >= width - band || y1 >= height - band) continue
     if (Math.min(w, h) < long * MIN_GLARE_SIDE || members.length / (w * h) < MIN_GLARE_FILL) continue
     if (ringBrightness(pixels, blob) < SOFT_EDGE_LEVEL) continue
-    markWithFade(pixels, blob, mask)
+    if (!markWithFade(pixels, blob, mask)) continue
     cores += members.length
   }
   return cores && cores <= MAX_GLARE_TOTAL * total ? mask : null
@@ -493,9 +492,10 @@ function ringBrightness({ width, height, data }: Pixels, blob: Blob): number {
 /**
  * Marks a glare spot plus the soft fade around it. Measures the brightness of each ring outward from the
  * blown-out core (up to twice the spot's size), takes the darkest ring as the card underneath, and marks
- * out to where 90% of the glare's brightening is gone.
+ * out to where 90% of the glare's brightening is gone. False (nothing marked) when the surroundings are too
+ * busy to fill from.
  */
-function markWithFade(pixels: Pixels, blob: Blob, mask: Uint8Array) {
+function markWithFade(pixels: Pixels, blob: Blob, mask: Uint8Array): boolean {
   const { width, height, data } = pixels
   const size = Math.max(blob.x1 - blob.x0, blob.y1 - blob.y0) + 1
   const reach = Math.min(2 * size, Math.round(Math.max(width, height) * MAX_FADE))
@@ -536,7 +536,23 @@ function markWithFade(pixels: Pixels, blob: Blob, mask: Uint8Array) {
   const rings = stillFading ? -1 : ringMeans.findIndex((m) => m <= faded)
   const area = dilate(core, lw, lh, rings === -1 ? ringMeans.length : rings)
 
+  // What the fill borrows from: a busy ring (a face, print, detailed art) would be smeared in, so skip it.
+  const around = dilate(area, lw, lh, 3)
+  let sum = 0
+  let sumSq = 0
+  let n = 0
+  for (let j = 0; j < around.length; j++) {
+    if (!around[j] || area[j]) continue
+    const p = toGlobal(j) * 4
+    const v = (data[p] + data[p + 1] + data[p + 2]) / 3
+    sum += v
+    sumSq += v * v
+    n++
+  }
+  if (!n || Math.sqrt(Math.max(0, sumSq / n - (sum / n) ** 2)) > FLAT_SPREAD) return false
+
   for (let j = 0; j < area.length; j++) if (area[j]) mask[toGlobal(j)] = 1
+  return true
 }
 
 /** Straightens (unless the photo already is) and fills clear glare spots; `changes` is empty when nothing applied. */

@@ -9,7 +9,7 @@ import { BATCH_SIZE, touchUpQueue, useTouchUpBatch, type CardResult } from './us
 
 type Pick = 'before' | 'after'
 
-const CHANGE_LABELS: Record<TouchUpChange, string> = { straightened: 'Straightened', glare: 'Glare filled' }
+const CHANGE_LABELS: Record<TouchUpChange, string> = { straightened: 'Trimmed & straightened', glare: 'Glare filled' }
 
 /** Automatic touch-up for the whole collection: a batch at a time, every change reviewed before it's kept. */
 export function TouchUpPage() {
@@ -75,7 +75,7 @@ export function TouchUpPage() {
                 photos that haven’t been touched up yet.
               </p>
               <p className="text-sm text-slate-400">
-                Crooked cards are straightened and small glare spots filled, right here on your phone, at no cost. You
+                The background is trimmed off, crooked cards straightened and small glare spots filled, right here on your phone, at no cost. You
                 see the old and new version of every change and pick which to keep; {BATCH_SIZE} cards at a time.
               </p>
               <button type="button" onClick={() => run(queue.slice(0, BATCH_SIZE))} className={`${buttonPrimary} min-h-12`}>

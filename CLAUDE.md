@@ -70,7 +70,8 @@ src/
     format.ts      formatSerial(), formatMoney()
     cardDetect.ts  finds cards in a photo (pure, tested); photos.ts decodes, crops and compresses in the browser
     photoEdit.ts   photo touch-up (pure, tested): four corners -> upright card (homography), glare fill (inpaint);
-                   automatic: autoStraighten() (only a plausible card), findGlare() (blown-out spots + their fade)
+                   automatic: autoStraighten() (trim + straighten to cardEdges), findGlare() (blown-out spots on plain areas)
+    cardEdges.ts   findCardEdges(): a card or its toploader by four straight colour edges (pure, tested); works on carpet
   hooks/           useAuth, usePasskeys (Face ID), useCards, useScans (inbox, upload, AI submit/poll), usePhotos (signed URLs, upload),
                    useSessionState, useSetParallels / useChecklist (one set at a time), useKnownSets (Sets page counts),
                    useCardpedia (imports)
@@ -204,9 +205,11 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
   - Demo mode (`?demo`) gives the first demo card a sample photo for checking the editor; saving there does nothing.
   - **Automatic touch-up (built 2026-10-26, my request; untested on my phone):** More → Touch up photos.
     - Works through cards whose `photos_checked_at` is null, 8 at a time.
-    - Straightens a crooked card (only when a card-shaped region is found for sure), then fills blown-out glare spots along with their soft fade. White borders, thin white print and hard-edged logos are left alone.
+    - Trims the background off and straightens the card, then fills blown-out glare spots along with their soft fade, but only where the area around a spot is plain. White borders, thin white print, hard-edged logos and spots on busy art are left alone.
+    - **Reworked 2026-10-26 after my first test made all 3 changed photos worse** (cards cut off): the old finder told card from background by brightness and failed on carpet. `cardEdges.ts` now finds the four long straight colour edges that close a card-shaped rectangle (2.5 × 3.5, ±0.035) with an edge along at least 70% of every side, and takes the largest: in practice the toploader, so the card is never cut. A 1% margin is left round it. Otherwise the photo is left alone.
+    - Tuned on my 12 real photos (downloaded read-only to Claude's scratchpad, then deleted): all 12 trimmed to the toploader, none cut, no glare fills (my glare is broad toploader sheen, which filling can't fix). About 0.3 s per photo on a PC.
     - Each change shows Before | After, with After picked by default. Save marks the whole batch checked, keep-old and unchanged cards included.
-  - **Straight at capture:** `cropCard()` cuts each card with an 8% margin and straightens it to the card's corners, falling back to the plain 4% box if no card is found for sure. Straightened photos are saved with `-flat` in the name, so the automatic pass only looks for glare on them.
+  - **Straight at capture:** `cropCard()` cuts each card with an 8% margin and trims and straightens it with the same edge finder, falling back to the plain 4% box if no card is found for sure. Straightened photos are saved with `-flat` in the name, so the automatic pass only looks for glare on them.
 - **Duplicate detection (built 2026-10-04):** `duplicates.ts`. The form flags a card already in the collection; on save, a plain extra copy offers "Add to it" (quantity) and a same serial/cert asks before saving twice. Graded and numbered copies stay separate rows.
 - **Face ID sign-in (built 2026-10-04):** Supabase Auth passkeys (`usePasskeys.ts`); set up from More, used from the login screen. Passkeys are enabled in the dashboard (RP ID `joeydunn22.github.io`, confirmed 2026-10-05). Ask whether setting it up on my iPhone worked.
 - **AI spending (built 2026-10-05):** every AI action goes through `useAiApproval` (cost estimate dialog; "Ask before AI runs" can be turned off on More, but a run that could exceed the credit left always asks). The function logs each call's actual cost to `ai_usage`; More shows credit left = the balance I enter from the Console minus logged spend (Anthropic has no balance API, and its cost Admin API isn't open to individual accounts). Settings live in `app_settings` (also `auto_lookup`: automatic checklist searches after reading). Estimates in `costEstimate.ts` start from typical figures and switch to my own averages after 5 runs.

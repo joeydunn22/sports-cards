@@ -4,7 +4,6 @@ import {
   applyHomography,
   autoStraighten,
   autoTouchUp,
-  CAPTURE_CUT_SHARE,
   downscale,
   fillGlare,
   findGlare,
@@ -13,7 +12,6 @@ import {
   homography,
   inpaint,
   outputSize,
-  plausibleCard,
   rotateQuad,
   rotateQuarter,
   warpPerspective,
@@ -212,20 +210,8 @@ describe('downscale', () => {
   })
 })
 
-describe('plausibleCard', () => {
-  it('accepts a card-shaped quad that fills most of the photo', () => {
-    expect(plausibleCard([{ x: 0.05, y: 0.04 }, { x: 0.95, y: 0.06 }, { x: 0.94, y: 0.96 }, { x: 0.06, y: 0.95 }], 700, 1000)).toBe(true)
-  })
-
-  it('refuses a square, a small region and a twisted quad', () => {
-    expect(plausibleCard([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }], 1000, 1000)).toBe(false)
-    expect(plausibleCard([{ x: 0.3, y: 0.3 }, { x: 0.6, y: 0.3 }, { x: 0.6, y: 0.7 }, { x: 0.3, y: 0.7 }], 700, 1000)).toBe(false)
-    expect(plausibleCard([{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], 700, 1000)).toBe(false)
-  })
-})
-
 describe('autoStraighten', () => {
-  it('flattens a tilted card cut out with a margin', () => {
+  it('flattens a tilted card cut out with a margin, leaving only a sliver of background', () => {
     const corners: Point[] = [
       { x: 20, y: 10 },
       { x: 185, y: 25 },
@@ -235,8 +221,9 @@ describe('autoStraighten', () => {
     const photo = image(200, 260, (x, y) => (inside(corners, x + 0.5, y + 0.5) ? 220 : 20))
     const flat = autoStraighten(photo, 1600)!
     expect(flat).not.toBeNull()
-    for (let y = 3; y < flat.height - 3; y += 7) {
-      for (let x = 3; x < flat.width - 3; x += 7) expect(gray(flat, x, y)).toBeGreaterThan(200)
+    // The safety margin keeps a pixel or two of background round the edge; everything inside is card.
+    for (let y = 6; y < flat.height - 6; y += 7) {
+      for (let x = 6; x < flat.width - 6; x += 7) expect(gray(flat, x, y)).toBeGreaterThan(200)
     }
   })
 
@@ -278,6 +265,17 @@ describe('findGlare', () => {
     expect(findGlare(glareOnRed(3, 180))).toBeNull()
   })
 
+  it('leaves a glare spot on busy artwork alone, since a fill would smear it', () => {
+    // The same soft spot as above, over fine red and dark stripes (like print or a face).
+    const busy = rgb(300, 400, (x, y) => {
+      const d = Math.hypot(x - 150, y - 180)
+      const t = d < 15 ? 1 : d < 25 ? (25 - d) / 10 : 0
+      const base = x % 8 < 4 ? RED : DARK
+      return base.map((v) => Math.round(v + (255 - v) * t)) as [number, number, number]
+    })
+    expect(findGlare(busy)).toBeNull()
+  })
+
   it('reports no changes when there is nothing to do', () => {
     const plain = rgb(300, 400, () => RED)
     expect(autoTouchUp(plain, { straighten: true, maxEdge: 1600 }).changes).toEqual([])
@@ -296,7 +294,7 @@ describe('auto touch-up on real-world layouts', () => {
     expect(findGlare(card)?.[180 * 300 + 150]).toBe(1)
   })
 
-  it('straightens a steeply tilted card in a wide capture cut, which a saved photo would not trust', () => {
+  it('straightens a steeply tilted card in a wide capture cut', () => {
     // A 9° card, cut out with generous margins: the card is only about 48% of the cut.
     const angle = (9 * Math.PI) / 180
     const turn = (x: number, y: number): Point => ({
@@ -305,8 +303,7 @@ describe('auto touch-up on real-world layouts', () => {
     })
     const corners = [turn(-250, -350), turn(250, -350), turn(250, 350), turn(-250, 350)]
     const cut = image(760, 960, (x, y) => (inside(corners, x + 0.5, y + 0.5) ? 220 : 20))
-    expect(autoStraighten(cut, 1600)).toBeNull()
-    const flat = autoStraighten(cut, 1600, CAPTURE_CUT_SHARE)!
+    const flat = autoStraighten(cut, 1600)!
     expect(flat.width / flat.height).toBeCloseTo(500 / 700, 1)
   })
 })
