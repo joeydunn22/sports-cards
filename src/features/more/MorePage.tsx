@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
 import { useState } from 'react'
@@ -13,6 +14,7 @@ import {
 import { ImportExportSections } from '../import-export/ImportExportPage'
 import { AI_MODELS, getAiModel, setAiModel, type AiModel } from '../scan/aiModel'
 import { NO_ENTRIES, useChecklist } from '../../hooks/useChecklist'
+import { NO_PARALLELS, useSetParallels } from '../../hooks/useSetParallels'
 import { AiCreditSetting } from './AiCreditSetting'
 
 export function MorePage() {
@@ -137,22 +139,22 @@ function PasskeySetting() {
   )
 }
 
-/** The self-building checklist cache, so it's visible that it grows. */
+/** The card database (set parallel lists and checklist spots), opened on the Sets page. */
 function CardDatabase() {
   const { data: entries = NO_ENTRIES } = useChecklist()
-  const fromSearches = entries.filter((e) => e.source === 'search').length
+  const { data: parallels = NO_PARALLELS } = useSetParallels()
+  const sets = new Set([...entries, ...parallels].map((e) => `${e.year}|${e.set_name}`.toLowerCase())).size
   return (
-    <section className={`${panel} flex flex-col gap-1 p-4`}>
-      <h2 className="text-lg font-semibold">Card database</h2>
-      <p className="text-sm text-slate-300">
-        {entries.length} checklist {entries.length === 1 ? 'spot' : 'spots'} known: {entries.length - fromSearches} from
-        your cards, {fromSearches} from AI checklist searches.
-      </p>
-      <p className="text-sm text-slate-400">
-        It fills itself as you save cards and the AI settles unsure ones. Scanned cards that match it are settled for
-        free, without a web search, and it fills in blanks when you add a card by hand.
-      </p>
-    </section>
+    <Link to="/sets" className={`${panel} flex items-center justify-between gap-3 p-4 active:bg-slate-900`}>
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold">Sets</h2>
+        <p className="text-sm text-slate-400">
+          {sets} {sets === 1 ? 'set' : 'sets'} known: {parallels.length} parallels, {entries.length} cards. Get sets
+          ready before scanning, and fix anything wrong.
+        </p>
+      </div>
+      <Icon name="back" size={18} className="shrink-0 rotate-180 text-slate-500" />
+    </Link>
   )
 }
 

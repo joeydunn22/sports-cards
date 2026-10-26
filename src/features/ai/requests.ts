@@ -14,6 +14,19 @@ export function readRequest(cards: number, model: string, estimate: Estimate, au
   }
 }
 
+export function parallelsRequest(sets: string[], model: string, estimate: Estimate, now: boolean): AiRequest {
+  return {
+    action:
+      sets.length === 1
+        ? `Look up the parallels of ${sets[0]} with ${modelLabel(model)} (up to 3 web searches).`
+        : `Look up the parallels of ${sets.length} sets with ${modelLabel(model)} (up to 3 web searches each).`,
+    estimate,
+    note: now
+      ? 'Takes up to a minute. Each set is looked up once and kept, so every later card from it is free.'
+      : 'Results usually arrive within minutes. Each set is looked up once and kept, so every later card from it is free.',
+  }
+}
+
 export function lookupRequest(cards: number, model: string, estimate: Estimate): AiRequest {
   return {
     action: `Check ${cardsText(cards)} against the set’s checklist with ${modelLabel(model)} (up to 3 web searches each).`,

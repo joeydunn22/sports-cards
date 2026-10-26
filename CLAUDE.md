@@ -43,6 +43,7 @@ src/
       cardText.ts      cardTitle(), setNameWarning()
       collection.ts    filterCards(), distinctValues(), summarize(), isSold()
       duplicates.ts    findDuplicates(): same card already in the collection (DuplicateNotice.tsx shows it)
+      parallels.ts     matchParallel(): a set's parallel list names the parallel from the print run (and back)
       suggestions.ts   per-field autocomplete lists, last-used sport
       useCardTable.ts  TanStack Table columns and sort options
       CardForm, NewCardPage, EditCardPage, CollectionPage,
@@ -50,6 +51,8 @@ src/
     import-export/ cardCsv.ts (CSV <-> cards, validation), ImportExportPage.tsx (sections shown on More)
     scan/          captureState.ts (photos -> card spots, pairing), extraction.ts (AI reading + lookup -> form, cost, inbox sections),
                    scanDefaults.ts, aiModel.ts, CapturePage, PhotoStep, CropPreview, ScanPage (inbox), ReviewScanPage
+    sets/          SetsPage (the card database by set: get sets ready, import parallels), SetDetailPage (fix entries),
+                   setIndex.ts (grouping, set lines, parallels CSV), useParallelLookup (form's paid lookup button)
     more/          MorePage: import/export, AI model choice, sign out
   lib/
     supabase.ts    Supabase client (single instance)
@@ -66,8 +69,9 @@ supabase/
   migrations/      numbered SQL migrations; the source of truth for the schema
   functions/
     scan-cards/    Edge Function: sends inbox photos to Claude as a Message Batch and stores the readings;
-                   triage.ts decides which cards get one checklist pass, cache.ts settles them from the card
-                   database first, pricing.ts logs costs (all tested by Vitest).
+                   triage.ts decides which cards get one checklist pass, rainbow.ts settles a parallel from the
+                   print run, cache.ts settles cards from the card database first, pricing.ts logs costs (all
+                   tested by Vitest). Also fetches sets' parallel lists (action "parallels").
                    Deploy with `npx supabase functions deploy scan-cards --use-api` (no Docker needed).
 .github/
   workflows/
@@ -140,9 +144,10 @@ Rules:
 
 ## Supabase keep-alive
 Free Supabase projects pause after about 7 days of inactivity. `keepalive.yml` prevents that:
-- It runs on a schedule (every 3 days) and also supports `workflow_dispatch` for manual runs.
-- It makes a lightweight read-only request to the Supabase REST API using the publishable key from repo secrets. Under RLS that returns nothing, but it still counts as activity.
-- It then commits an updated timestamp to `.github/keepalive.txt`. GitHub turns off scheduled workflows in public repos after 60 days without repo activity, and the commit prevents that.
+- It runs daily and also supports `workflow_dispatch` for manual runs.
+- It calls `rpc/keepalive` with the publishable key from repo secrets: a `security definer` function that updates one heartbeat row (`public.keepalive`), a real database write. An anonymous read of `cards` (empty under RLS) did **not** count: the project paused in October 2026 despite those pings.
+- About once a week it commits an updated timestamp to `.github/keepalive.txt`. GitHub turns off scheduled workflows in public repos after 60 days without repo activity, and the commit prevents that.
+- If the project is paused anyway, the app shows "Can't reach the database" with a link to the dashboard, where **Restore project** brings it back with the data intact.
 - Keep-alive commits must not trigger the Pages deploy. Add `paths-ignore` for `.github/keepalive.txt` in `deploy.yml`.
 
 ## Connectivity
@@ -180,8 +185,8 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - **Duplicate detection (built 2026-10-04):** `duplicates.ts`. The form flags a card already in the collection; on save, a plain extra copy offers "Add to it" (quantity) and a same serial/cert asks before saving twice. Graded and numbered copies stay separate rows.
 - **Face ID sign-in (built 2026-10-04):** Supabase Auth passkeys (`usePasskeys.ts`); set up from More, used from the login screen. Passkeys are enabled in the dashboard (RP ID `joeydunn22.github.io`, confirmed 2026-10-05). Ask whether setting it up on my iPhone worked.
 - **AI spending (built 2026-10-05):** every AI action goes through `useAiApproval` (cost estimate dialog; "Ask before AI runs" can be turned off on More, but a run that could exceed the credit left always asks). The function logs each call's actual cost to `ai_usage`; More shows credit left = the balance I enter from the Console minus logged spend (Anthropic has no balance API, and its cost Admin API isn't open to individual accounts). Settings live in `app_settings` (also `auto_lookup`: automatic checklist searches after reading). Estimates in `costEstimate.ts` start from typical figures and switch to my own averages after 5 runs.
-- **Start of next session:** I found the card database confusing. Re-discuss it from scratch and brainstorm the best way to implement it before changing anything (it is built and live, described below).
 - **Card database / checklist cache (built 2026-10-05, my choice over imported checklists or a paid API):** `checklist_entries`, one row per checklist spot (year + set + insert + card #). A trigger on `cards` keeps it in step with saved cards (trusted, source `collection`); checklist searches that settle a card's identity add `search` rows, never overriding a saved card. Before any checklist web search, the function tries `cache.ts`: if the cache answers every doubt, the card is settled free; otherwise the matching entry goes into the search prompt as a hint. Add card's free fill-in uses it too. More shows its size.
+- **Set parallel lists (built 2026-10-25, untested with real data):** `set_parallels`, one row per year + set + insert + parallel with its print run, so a print run names the parallel (2011 Bowman Chrome Draft /5 = Red Refractor). Learned from saved cards (trigger), fetched by AI once per set (`parallel_fetches`; batch from the Sets page's "Get sets ready", or right away from the form's "Look up parallels" button), or added/imported by hand on the Sets page (`manual`, never overwritten). Scans settle an unsure parallel from it for free before triage; a checklist search also brings back the list when the set has none. The form fills the parallel or print run, offers the 1/1 choices, and warns on a mismatch. The Sets page (from More) replaced the "Card database" count and shows both parallels and checklist spots per set.
 - **Manual-entry fill-in (built 2026-10-05; AI lookup button removed at my request, since I expect little manual entry):** leaving Player, Year, Set or Card # fills blanks for free from matching cards in my collection (`autofill.ts`).
 
 ## Roadmap

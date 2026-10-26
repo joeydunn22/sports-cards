@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IS_DEMO } from '../dev/demo'
 import { supabase } from '../lib/supabase'
 
 export type ChecklistEntry = {
+  id: string
   year: string
   set_name: string
   insert_name: string
@@ -20,18 +21,35 @@ export const NO_ENTRIES: ChecklistEntry[] = []
  * The self-building checklist cache: one row per checklist spot, from saved cards (database trigger)
  * and from AI checklist searches that settled a card (scan-cards function).
  */
+const CHECKLIST_KEY = ['checklist'] as const
+
 export function useChecklist() {
   return useQuery({
-    queryKey: ['checklist'],
+    queryKey: CHECKLIST_KEY,
     queryFn: async (): Promise<ChecklistEntry[]> => {
       if (IS_DEMO) return NO_ENTRIES
       const { data, error } = await supabase
         .from('checklist_entries')
-        .select('year, set_name, insert_name, card_number, player, team, sport, is_rookie, source')
+        .select('id, year, set_name, insert_name, card_number, player, team, sport, is_rookie, source')
         .order('updated_at', { ascending: false })
       if (error) throw error
       return data
     },
     staleTime: 60_000,
+  })
+}
+
+/** Removes a wrong spot (say, from a mistaken search). One from a saved card comes back while that card exists. */
+export function useDeleteChecklistEntry() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('checklist_entries').delete().eq('id', id)
+      if (error) throw error
+    },
+    onMutate: (id) => {
+      queryClient.setQueryData<ChecklistEntry[]>(CHECKLIST_KEY, (old) => old?.filter((e) => e.id !== id))
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: CHECKLIST_KEY }),
   })
 }

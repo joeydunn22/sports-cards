@@ -44,6 +44,7 @@ export function useAiApproval() {
   const estimate = {
     read: (cards: number, model: string) => estimateRead(model, cards, history, settings.auto_lookup),
     lookup: (cards: number, model: string) => estimateEach('lookup', model, cards, history),
+    parallels: (sets: number, model: string, now = false) => estimateEach('parallels', model, sets, history, { now }),
   }
   return { approve, dialog, credit, estimate, autoLookup: settings.auto_lookup }
 }

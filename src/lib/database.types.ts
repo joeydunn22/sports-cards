@@ -275,6 +275,111 @@ export type Database = {
         }
         Relationships: []
       }
+      keepalive: {
+        Row: {
+          id: number
+          pinged_at: string
+        }
+        Insert: {
+          id: number
+          pinged_at?: string
+        }
+        Update: {
+          id?: number
+          pinged_at?: string
+        }
+        Relationships: []
+      }
+      parallel_fetches: {
+        Row: {
+          batch_id: string | null
+          created_at: string
+          error: string | null
+          found: number | null
+          id: string
+          notes: string | null
+          set_key: string | null
+          set_name: string
+          status: string
+          updated_at: string
+          user_id: string
+          year: string
+        }
+        Insert: {
+          batch_id?: string | null
+          created_at?: string
+          error?: string | null
+          found?: number | null
+          id?: string
+          notes?: string | null
+          set_key?: string | null
+          set_name: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          year: string
+        }
+        Update: {
+          batch_id?: string | null
+          created_at?: string
+          error?: string | null
+          found?: number | null
+          id?: string
+          notes?: string | null
+          set_key?: string | null
+          set_name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          year?: string
+        }
+        Relationships: []
+      }
+      set_parallels: {
+        Row: {
+          created_at: string
+          id: string
+          insert_name: string
+          parallel: string
+          parallel_key: string | null
+          print_run: number | null
+          set_name: string
+          source: string
+          source_url: string | null
+          updated_at: string
+          user_id: string
+          year: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          insert_name?: string
+          parallel: string
+          parallel_key?: string | null
+          print_run?: number | null
+          set_name: string
+          source: string
+          source_url?: string | null
+          updated_at?: string
+          user_id?: string
+          year: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          insert_name?: string
+          parallel?: string
+          parallel_key?: string | null
+          print_run?: number | null
+          set_name?: string
+          source?: string
+          source_url?: string | null
+          updated_at?: string
+          user_id?: string
+          year?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -285,6 +390,16 @@ export type Database = {
         Args: {
           card_number: string
           insert_name: string
+          set_name: string
+          year: string
+        }
+        Returns: string
+      }
+      keepalive: { Args: never; Returns: string }
+      set_parallel_key: {
+        Args: {
+          insert_name: string
+          parallel: string
           set_name: string
           year: string
         }

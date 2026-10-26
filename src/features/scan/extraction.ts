@@ -58,6 +58,8 @@ export type Extraction = Reading & {
   usage?: Usage
   triage?: Triage
   lookup?: Lookup
+  /** What the set's parallel list said about the parallel (see supabase/functions/scan-cards/rainbow.ts). */
+  rainbow?: { kind: 'settled' | 'conflict' | 'choices'; was?: string; note: string }
 }
 
 export function asExtraction(value: Json | null): Extraction | null {
@@ -120,14 +122,21 @@ export function fieldNotes(e: Extraction): FieldNotes {
   for (const field of e.inferred_fields ?? []) {
     if (!lookup?.confirmed?.includes(field)) note(field, 'AI guessed this (not printed clearly). Check it.')
   }
+  const rainbow = e.rainbow
+    ? e.rainbow.kind === 'settled'
+      ? `From the set’s parallel list: ${e.rainbow.note}${e.rainbow.was ? ` (first read as “${e.rainbow.was}”)` : ''}`
+      : e.rainbow.note
+    : null
   if (!lookup) {
     for (const field of e.uncertain_fields ?? []) note(field, 'AI isn’t sure about this. Check it.')
+    if (rainbow) note('parallel', rainbow)
     return notes
   }
   for (const field of lookup.still_uncertain ?? []) note(field, 'The checklist search didn’t settle this. Check it.')
   for (const field of lookup.changed ?? []) {
     note(field, `Corrected by the checklist search (first read as ${shown(e[field as keyof Reading])}).`)
   }
+  if (rainbow && !notes.parallel) note('parallel', rainbow)
   return notes
 }
 

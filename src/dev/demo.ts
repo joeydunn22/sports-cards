@@ -1,5 +1,6 @@
 import type { Session } from '@supabase/supabase-js'
 import type { Card, CardScan } from '../types/card'
+import type { ParallelRow } from '../hooks/useSetParallels'
 
 /**
  * Dev-only demo mode for checking the UI without a real account: open the dev server with `?demo`
@@ -87,3 +88,43 @@ export const demoScans: CardScan[] = [
   scan('s6', 'pending', null),
 ]
 
+
+const rainbow = (
+  set_name: string,
+  year: string,
+  rows: [parallel: string, print_run: number | null, insert_name?: string][],
+): ParallelRow[] =>
+  rows.map(([parallel, print_run, insert_name = ''], i) => ({
+    id: `${year}-${set_name}-${i}`,
+    year,
+    set_name,
+    insert_name,
+    parallel,
+    print_run,
+    source: 'search',
+    source_url: null,
+  }))
+
+/** Sample parallel lists, so the form's fill-in and the Sets page can be checked in demo mode. */
+export const demoParallels: ParallelRow[] = [
+  ...rainbow('Bowman Chrome Draft', '2011', [
+    ['Refractor', null],
+    ['Blue Refractor', 199],
+    ['Gold Refractor', 50],
+    ['Orange Refractor', 25],
+    ['Red Refractor', 5],
+    ['Superfractor', 1],
+    ['Printing Plate Black', 1],
+    ['Printing Plate Cyan', 1],
+    ['Refractor', 500, 'Prospect Autographs'],
+    ['Blue Refractor', 150, 'Prospect Autographs'],
+    ['Gold Refractor', 50, 'Prospect Autographs'],
+    ['Red Refractor', 5, 'Prospect Autographs'],
+    ['Superfractor', 1, 'Prospect Autographs'],
+  ]),
+  ...rainbow('Topps Finest', '2023', [
+    ['Refractor', null],
+    ['Gold Refractor', 50],
+    ['Red Refractor', 5],
+  ]).map((p, i) => (i === 2 ? { ...p, source: 'collection' } : p)),
+]

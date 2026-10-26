@@ -31,7 +31,7 @@ export function useScans() {
 /** How often to ask whether the AI has finished a batch. */
 const POLL_MS = 20_000
 
-async function callScanFunction<T>(body: Record<string, unknown>): Promise<T> {
+export async function callScanFunction<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>('scan-cards', { body })
   if (error) {
     // The function returns { error } with a readable message; surface it instead of the generic one.

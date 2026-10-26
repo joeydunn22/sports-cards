@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router'
 import { PageHeader } from '../../components/PageHeader'
 import { NO_CARDS, useAddQuantity, useCards, useCreateCard } from '../../hooks/useCards'
 import { NO_ENTRIES, useChecklist } from '../../hooks/useChecklist'
+import { NO_PARALLELS, useSetParallels } from '../../hooks/useSetParallels'
+import { useAiApproval } from '../ai/useAiApproval'
+import { useParallelLookup } from '../sets/useParallelLookup'
 import type { Card } from '../../types/card'
 import { CardForm } from './CardForm'
 import { emptyCardForm, toCardInput, type CardFormValues } from './cardSchema'
@@ -14,6 +17,9 @@ export function NewCardPage() {
   const { data: checklist = NO_ENTRIES } = useChecklist()
   // Your own cards first (newest first), then what checklist searches have learned.
   const known = useMemo(() => [...cards, ...checklist], [cards, checklist])
+  const { data: setParallels = NO_PARALLELS } = useSetParallels()
+  const ai = useAiApproval()
+  const parallelLookup = useParallelLookup(ai)
   const createCard = useCreateCard()
   const addQuantity = useAddQuantity()
   const navigate = useNavigate()
@@ -40,8 +46,11 @@ export function NewCardPage() {
         suggestions={suggestions}
         duplicates={{ cards, askOnSave: true }}
         autofillFrom={known}
+        setParallels={setParallels}
+        lookUpParallels={parallelLookup}
         onSubmit={handleSubmit}
       />
+      {ai.dialog}
     </main>
   )
 }

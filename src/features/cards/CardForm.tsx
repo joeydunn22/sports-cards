@@ -11,6 +11,7 @@ import { cardTitle, setNameWarning } from './cardText'
 import { fieldName, fillFromCollection, type Spot } from './autofill'
 import { DuplicateNotice, DuplicatePrompt } from './DuplicateNotice'
 import { findDuplicates, type DuplicateMatch } from './duplicates'
+import { hasParallelList, matchParallel, parallelSuggestions, type SetParallel } from './parallels'
 
 export type SuggestionField =
   | 'player'
@@ -53,6 +54,15 @@ type CardFormProps = {
   duplicates?: { cards: Card[]; excludeId?: string; askOnSave: boolean }
   /** Fill blank fields from matching cards in the collection when Player, Year, Set or Card # is left. */
   autofillFrom?: Spot[]
+  /** Every set's parallels: fills the parallel from the print run (or back), and flags mismatches. */
+  setParallels?: SetParallel[]
+  /** A paid lookup of a set's parallel list, offered when none is known. Resolves with the fresh list. */
+  lookUpParallels?: {
+    run: (year: string, setName: string) => Promise<SetParallel[] | null>
+    busy: boolean
+    cost: string
+    error: string | null
+  }
 }
 
 type PendingSave = { values: CardFormValues; addAnother: boolean; match: DuplicateMatch }
@@ -67,6 +77,8 @@ export function CardForm({
   fieldNotes = {},
   duplicates,
   autofillFrom,
+  setParallels,
+  lookUpParallels,
 }: CardFormProps) {
   const {
     register,
@@ -82,6 +94,10 @@ export function CardForm({
   const [pending, setPending] = useState<PendingSave | null>(null)
   const [saving, setSaving] = useState(false)
   const [filledNote, setFilledNote] = useState<string | null>(null)
+  // Shown only while the filled value is still there.
+  const [parallelNote, setParallelNote] = useState<{ field: 'parallel' | 'print_run'; value: string; text: string } | null>(
+    null,
+  )
 
   // Success toasts fade out on their own; errors stay until the next save attempt.
   useEffect(() => {
@@ -94,10 +110,22 @@ export function CardForm({
     control,
     name: ['set_name', 'is_rookie', 'is_auto', 'is_patch', 'is_relic', 'is_graded'],
   })
-  const [player, year, insertName, parallel, cardNumber, serial, cert] = useWatch({
+  const [player, year, insertName, parallel, cardNumber, serial, printRun, cert] = useWatch({
     control,
-    name: ['player', 'year', 'insert_name', 'parallel', 'card_number', 'serial_number', 'cert_number'],
+    name: ['player', 'year', 'insert_name', 'parallel', 'card_number', 'serial_number', 'print_run', 'cert_number'],
   })
+  const spot = { year, set_name: setName, insert_name: insertName }
+  const parallelMatch = setParallels ? matchParallel(setParallels, { ...spot, parallel, print_run: printRun }) : null
+  const offerLookup =
+    lookUpParallels &&
+    setParallels &&
+    year.trim() &&
+    setName.trim() &&
+    (printRun.trim() || parallel.trim()) &&
+    !hasParallelList(setParallels, year, setName)
+  const lists = setParallels
+    ? { ...suggestions, parallel: parallelSuggestions(setParallels, spot, suggestions.parallel ?? []) }
+    : suggestions
   const matches = duplicates
     ? findDuplicates(
         {
@@ -131,6 +159,7 @@ export function CardForm({
         setStatus({ kind: 'ok', text: mergeInto ? `Added to quantity: ${title}` : `Saved: ${title}` })
         reset(stickyForm(formValues))
         setFilledNote(null)
+        setParallelNote(null)
         window.scrollTo({ top: 0 })
         setFocus('player')
       }
@@ -165,11 +194,31 @@ export function CardForm({
 
   // Free: fill blanks from the collection when an identifying field is left.
   function autofill() {
+    fillParallel()
     if (!autofillFrom) return
     const fill = fillFromCollection(getValues(), autofillFrom)
     if (!fill) return
     apply(fill.values)
     setFilledNote(`Filled ${fill.fields.map(fieldName).join(', ')} from ${fill.source}.`)
+  }
+
+  // Free: the set's parallel list names the parallel from its print run, or the print run from the parallel.
+  // Leaving one of the two fills only the other, so a field cleared on purpose stays blank.
+  function fillParallel(list = setParallels, { from }: { from?: 'parallel' | 'print_run' } = {}) {
+    if (!list) return
+    const match = matchParallel(list, getValues())
+    if (match?.kind === 'fill' && from !== 'parallel') {
+      apply({ parallel: match.parallel })
+      setParallelNote({ field: 'parallel', value: match.parallel, text: `Filled Parallel: ${match.parallel}, ${match.text}.` })
+    } else if (match?.kind === 'printRun' && from !== 'print_run') {
+      apply({ print_run: String(match.printRun) })
+      setParallelNote({ field: 'print_run', value: String(match.printRun), text: `Filled the print run: ${match.text}.` })
+    }
+  }
+
+  async function lookUpSetParallels() {
+    const list = await lookUpParallels?.run(year.trim(), setName.trim())
+    if (list) fillParallel(list)
   }
 
 
@@ -202,7 +251,7 @@ export function CardForm({
       noValidate
       className="flex flex-col gap-4 pb-28"
     >
-      {Object.entries(suggestions).map(([field, options]) => (
+      {Object.entries(lists).map(([field, options]) => (
         <datalist key={field} id={`suggest-${field}`}>
           {options.map((option) => (
             <option key={option} value={option} />
@@ -290,16 +339,20 @@ export function CardForm({
             hint="Named subset, blank for base: Rookie Autographs, Future Stars"
             className="col-span-2"
           >
-            {textInput('insert_name', { list: 'insert_name', autoCapitalize: 'words' })}
+            {textInput('insert_name', { list: 'insert_name', autoCapitalize: 'words', onBlur: () => fillParallel() })}
           </Field>
           <Field
             label="Parallel"
             htmlFor="parallel"
-            warning={fieldNotes.parallel}
+            warning={fieldNotes.parallel ?? (parallelMatch?.kind === 'conflict' ? parallelMatch.text : undefined)}
             hint="Color or finish, blank for base: Refractor, Red Refractor, Silver"
             className="col-span-2"
           >
-            {textInput('parallel', { list: 'parallel', autoCapitalize: 'words' })}
+            {textInput('parallel', {
+              list: 'parallel',
+              autoCapitalize: 'words',
+              onBlur: () => fillParallel(setParallels, { from: 'parallel' }),
+            })}
           </Field>
           <div className="col-span-2 flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-300">Serial numbered</span>
@@ -319,7 +372,7 @@ export function CardForm({
                 inputMode="numeric"
                 placeholder="99"
                 className={inputClass}
-                {...register('print_run')}
+                {...register('print_run', { onBlur: () => fillParallel(setParallels, { from: 'print_run' }) })}
               />
             </div>
             {errors.serial_number || errors.print_run ? (
@@ -331,6 +384,45 @@ export function CardForm({
             )}
           </div>
         </div>
+        {parallelMatch?.kind === 'choices' && (
+          <div className="mt-3 flex flex-col gap-2">
+            <p className="text-xs text-slate-400">{parallelMatch.text}</p>
+            <div className="flex flex-wrap gap-2">
+              {parallelMatch.options.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    apply({ parallel: option })
+                  }}
+                  className="min-h-11 rounded-full border border-slate-700 px-4 text-sm text-slate-200 active:bg-slate-800"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {parallelNote && (parallelNote.field === 'parallel' ? parallel : printRun) === parallelNote.value && (
+          <p className="mt-3 text-xs text-emerald-300">{parallelNote.text}</p>
+        )}
+        {offerLookup && (
+          <div className="mt-3 flex flex-col gap-1">
+            <button
+              type="button"
+              disabled={lookUpParallels?.busy}
+              onClick={() => void lookUpSetParallels()}
+              className={`${buttonSecondary} min-h-11 self-start text-sm`}
+            >
+              {lookUpParallels?.busy
+                ? 'Looking up parallels…'
+                : `Look up ${year.trim()} ${setName.trim()} parallels (~${lookUpParallels?.cost})`}
+            </button>
+            <p className="text-xs text-slate-500">
+              {lookUpParallels?.error ?? 'Once per set: after that, every card from it fills in for free.'}
+            </p>
+          </div>
+        )}
       </FormSection>
 
       <DuplicateNotice matches={matches} />

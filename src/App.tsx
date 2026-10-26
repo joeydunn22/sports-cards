@@ -10,6 +10,8 @@ import { MorePage } from './features/more/MorePage'
 import { CapturePage } from './features/scan/CapturePage'
 import { ReviewScanPage } from './features/scan/ReviewScanPage'
 import { ScanPage } from './features/scan/ScanPage'
+import { SetDetailPage } from './features/sets/SetDetailPage'
+import { SetsPage } from './features/sets/SetsPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -30,6 +32,8 @@ export default function App() {
                 <Route path="/scan/new" element={<CapturePage />} />
                 <Route path="/scan/:id" element={<ReviewScanPage />} />
                 <Route path="/more" element={<MorePage />} />
+                <Route path="/sets" element={<SetsPage />} />
+                <Route path="/sets/:year/:set" element={<SetDetailPage />} />
                 <Route path="/import-export" element={<Navigate to="/more" replace />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>

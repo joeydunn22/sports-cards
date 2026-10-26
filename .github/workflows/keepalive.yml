@@ -1,12 +1,13 @@
 name: Supabase keep-alive
 
-# Free Supabase projects pause after ~7 days without activity. This pings the
-# database every 3 days, then commits a timestamp so GitHub doesn't disable the
-# schedule after 60 days without repo activity. deploy.yml ignores this file.
+# Free Supabase projects pause after ~7 days without activity. This writes a heartbeat to the database
+# every day (an anonymous read wasn't enough: the project paused anyway), then about once a week commits
+# a timestamp so GitHub doesn't disable the schedule after 60 days without repo activity.
+# deploy.yml ignores that file.
 
 on:
   schedule:
-    - cron: '17 9 */3 * *'
+    - cron: '17 9 * * *'
   workflow_dispatch:
 
 permissions:
@@ -21,15 +22,24 @@ jobs:
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
-          # Anonymous read: RLS returns no rows, but the request counts as activity.
-          curl --fail --silent --show-error \
+          # public.keepalive() upserts one heartbeat row: a real database write.
+          curl --fail --silent --show-error -X POST \
             -H "apikey: $SUPABASE_KEY" \
-            "$SUPABASE_URL/rest/v1/cards?select=id&limit=1"
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "$SUPABASE_URL/rest/v1/rpc/keepalive"
 
       - uses: actions/checkout@v7
 
       - name: Record ping
         run: |
+          # Commit about once a week; a daily commit would only clutter the history.
+          last=$(date -d "$(cat .github/keepalive.txt)" +%s 2>/dev/null || echo 0)
+          if [ $(( $(date +%s) - last )) -lt $(( 6 * 24 * 3600 )) ]; then
+            echo "Recorded less than 6 days ago; skipping the commit."
+            exit 0
+          fi
           date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/keepalive.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

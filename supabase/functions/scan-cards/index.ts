@@ -3,6 +3,10 @@
 //   POST { action: "poll" } collects finished results into card_scans.extraction. Cards whose reading
 //     has a doubt a checklist can settle (see triage.ts) go out again, once, with web search.
 //   POST { action: "lookup", ids } runs that checklist pass on reviewed-ready cards on request.
+//   POST { action: "parallels", sets: [{ year, set_name }], now?, model? } fetches each set's parallel list
+//     (public.set_parallels): right away when `now` (the card form waits for it), otherwise as a batch.
+//   POST { action: "poll_parallels" } collects finished parallel-list batches.
+// A print run read off a card, checked against its set's parallel list, can settle the parallel for free.
 // Every call's actual cost goes in public.ai_usage, which the app subtracts from the credit balance.
 // Runs as the signed-in user, so row-level security applies to every query.
 import Anthropic from 'npm:@anthropic-ai/sdk'
@@ -12,11 +16,14 @@ import {
   FIELDS,
   LOOKUP_MAX_SEARCHES,
   lookupInstructions,
+  parallelsInstructions,
   RECORD_CARD_TOOL,
+  RECORD_PARALLELS_TOOL,
   systemPrompt,
   type KnownNames,
 } from './prompt.ts'
 import { cacheHint, entryFromSearch, findSpot, resolveFromCache, type Entry } from './cache.ts'
+import { hasList, rainbowHint, rowsFromSearch, settleParallel, type Rainbow } from './rainbow.ts'
 import { usageDollars } from './pricing.ts'
 import { triage } from './triage.ts'
 
@@ -35,7 +42,7 @@ type Scan = { id: string; front_image_path: string; back_image_path: string | nu
 type Reading = Record<string, unknown> & { model?: string; uncertain_fields?: string[] }
 type ScanWithReading = Scan & { extraction: Reading }
 type UsageRow = {
-  kind: 'read' | 'lookup'
+  kind: 'read' | 'lookup' | 'parallels'
   model: string
   searches: number
   input_tokens: number
@@ -80,6 +87,24 @@ async function rememberSearches(supabase: SupabaseClient, entries: Entry[]) {
   if (error) console.error('checklist_entries upsert failed', error)
 }
 
+/** Every set's parallel list (public.set_parallels); small enough to load whole. */
+async function loadRainbow(supabase: SupabaseClient): Promise<Rainbow[]> {
+  const { data, error } = await supabase
+    .from('set_parallels')
+    .select('year, set_name, insert_name, parallel, print_run, source, source_url')
+  if (error) throw error
+  return data as Rainbow[]
+}
+
+/** Saves parallels a search found. Anything already known (from a saved card, by hand, or earlier) wins. */
+async function rememberParallels(supabase: SupabaseClient, rows: Rainbow[]) {
+  if (rows.length === 0) return
+  const { error } = await supabase
+    .from('set_parallels')
+    .upsert(rows, { onConflict: 'user_id,parallel_key', ignoreDuplicates: true })
+  if (error) console.error('set_parallels upsert failed', error)
+}
+
 /** Falls back to the app_settings column default for a collector who never opened the settings. */
 async function autoLookup(supabase: SupabaseClient): Promise<boolean> {
   const { data } = await supabase.from('app_settings').select('auto_lookup').maybeSingle()
@@ -121,6 +146,11 @@ Deno.serve(async (req) => {
     }
     if (body.action === 'poll') return json(await poll(supabase, anthropic))
     if (body.action === 'lookup' && ids) return json(await requestLookups(supabase, anthropic, ids))
+    if (body.action === 'parallels' && Array.isArray(body.sets)) {
+      const model = isModel(body.model) ? body.model : DEFAULT_MODEL
+      return json(await fetchParallels(supabase, anthropic, model, body.sets, body.now === true))
+    }
+    if (body.action === 'poll_parallels') return json(await pollParallels(supabase, anthropic))
     return json({ error: 'Unknown action.' }, 400)
   } catch (err) {
     console.error(err)
@@ -182,8 +212,11 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
   const spent: UsageRow[] = []
   const lookUpNow = scans.some((s) => s.status === 'processing') ? await autoLookup(supabase) : false
   const learned: Entry[] = []
+  const learnedParallels: Rainbow[] = []
   let checklist: Entry[] | null = null
   const cached = async () => (checklist ??= await loadChecklist(supabase))
+  let rainbow: Rainbow[] | null = null
+  const parallels = async () => (rainbow ??= await loadRainbow(supabase))
   for (const batchId of batchIds) {
     const batch = await anthropic.messages.batches.retrieve(batchId)
     if (batch.processing_status !== 'ended') {
@@ -197,7 +230,7 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
       }
       if (!scan) continue // reviewed or deleted meanwhile
       if (scan.status === 'looking_up') {
-        const update = toLookupUpdate(result, scan.extraction as Reading)
+        const { update, setParallels } = toLookupUpdate(result, scan.extraction as Reading)
         // Only if still waiting: the card may have been saved while the lookup ran.
         const { error: updateError } = await supabase
           .from('card_scans')
@@ -214,8 +247,18 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
             )
           : null
         if (entry) learned.push(entry)
+        const fields = lookup?.fields as Record<string, unknown> | undefined
+        if (setParallels.length && typeof fields?.year === 'string' && typeof fields?.set_name === 'string') {
+          const source = (lookup?.sources as { url: string }[] | undefined)?.[0]?.url ?? null
+          learnedParallels.push(...rowsFromSearch(fields.year, fields.set_name, setParallels, source))
+        }
       } else {
         const update = toScanUpdate(result)
+        // The set's parallel list goes first: a print run it knows can settle the parallel for free.
+        if (update.status === 'ready' && update.extraction) {
+          const settled = settleParallel(update.extraction as Reading, await parallels())
+          if (settled) update.extraction = { ...settled.reading, rainbow: settled.rainbow }
+        }
         const next = update.status === 'ready' ? triage(update.extraction as Reading) : null
         if (next) update.extraction = { ...update.extraction, triage: next }
         // With automatic lookups off, the card waits in review with a "Check checklist" button instead.
@@ -243,6 +286,7 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
 
   await logUsage(supabase, spent)
   await rememberSearches(supabase, learned)
+  await rememberParallels(supabase, learnedParallels)
   if (toLookUp.length) await sendLookupsOrRelease(supabase, anthropic, toLookUp)
   return { updated, processing: stillProcessing + toLookUp.length }
 }
@@ -260,18 +304,22 @@ async function requestLookups(supabase: SupabaseClient, anthropic: Anthropic, id
   if (error) throw error
   const scans = data as ScanWithReading[]
   if (scans.length === 0) return { submitted: 0 }
-  // Cards the checklist cache can settle don't need a web search.
+  // Cards the set's parallel list or the checklist cache can settle don't need a web search.
   const checklist = await loadChecklist(supabase)
+  const rainbow = await loadRainbow(supabase)
   const toSearch: ScanWithReading[] = []
   for (const scan of scans) {
-    const fromCache = resolveFromCache(scan.extraction, checklist, FIELDS)
-    if (!fromCache) {
-      toSearch.push(scan)
+    const settled = settleParallel(scan.extraction, rainbow)
+    const reading = settled ? { ...settled.reading, rainbow: settled.rainbow } : scan.extraction
+    const nothingLeft = settled?.rainbow.kind === 'settled' && !settled.reading.uncertain_fields?.length
+    const fromCache = nothingLeft ? null : resolveFromCache(reading, checklist, FIELDS)
+    if (!nothingLeft && !fromCache) {
+      toSearch.push({ ...scan, extraction: reading })
       continue
     }
     const { error: updateError } = await supabase
       .from('card_scans')
-      .update({ status: 'ready', extraction: { ...scan.extraction, lookup: fromCache } })
+      .update({ status: 'ready', extraction: fromCache ? { ...reading, lookup: fromCache } : reading })
       .eq('id', scan.id)
     if (updateError) throw updateError
   }
@@ -302,10 +350,15 @@ async function submitLookups(supabase: SupabaseClient, anthropic: Anthropic, sca
   const urls = await photoUrls(supabase, scans)
   const system = systemPrompt(await knownNames(supabase))
   const checklist = await loadChecklist(supabase)
+  const rainbow = await loadRainbow(supabase)
   const batch = await anthropic.messages.batches.create({
     requests: scans.map((scan) => {
       const model = isModel(scan.extraction.model) ? scan.extraction.model : DEFAULT_MODEL
-      const hint = cacheHint(findSpot(scan.extraction, checklist))
+      const hint = [cacheHint(findSpot(scan.extraction, checklist)), rainbowHint(scan.extraction, rainbow)]
+        .filter(Boolean)
+        .join(' ')
+      // Without a parallel list for this set yet, the search brings one back if it comes across it.
+      const askForParallels = !hasList(scan.extraction, rainbow)
       return {
         custom_id: scan.id,
         params: {
@@ -318,7 +371,10 @@ async function submitLookups(supabase: SupabaseClient, anthropic: Anthropic, sca
           messages: [
             {
               role: 'user',
-              content: [...photoBlocks(scan, urls), { type: 'text', text: lookupInstructions(scan.extraction, hint) }],
+              content: [
+                ...photoBlocks(scan, urls),
+                { type: 'text', text: lookupInstructions(scan.extraction, hint, askForParallels) },
+              ],
             },
           ],
         },
@@ -376,9 +432,20 @@ function toScanUpdate(result: Anthropic.Messages.MessageBatchIndividualResponse)
   }
 }
 
-/** Folds the checklist pass into the reading. Whatever happens, the card lands in review: never another lookup. */
-function toLookupUpdate(result: Anthropic.Messages.MessageBatchIndividualResponse, reading: Reading) {
-  const done = (lookup: Record<string, unknown>) => ({ status: 'ready', extraction: { ...reading, lookup } })
+type ParallelGroup = { insert_name?: unknown; parallels?: unknown }
+
+/**
+ * Folds the checklist pass into the reading. Whatever happens, the card lands in review: never another
+ * lookup. Also returns the set's parallel list, when the search was asked for it and found one.
+ */
+function toLookupUpdate(
+  result: Anthropic.Messages.MessageBatchIndividualResponse,
+  reading: Reading,
+): { update: { status: string; extraction: Record<string, unknown> }; setParallels: ParallelGroup[] } {
+  const done = (lookup: Record<string, unknown>, setParallels: ParallelGroup[] = []) => ({
+    update: { status: 'ready', extraction: { ...reading, lookup } },
+    setParallels,
+  })
   if (result.result.type !== 'succeeded') return done({ error: `${failureReason(result)} Showing the first reading.` })
 
   const message = result.result.message
@@ -399,15 +466,18 @@ function toLookupUpdate(result: Anthropic.Messages.MessageBatchIndividualRespons
 
   const fields = Object.fromEntries(FIELDS.map((f) => [f, input[f]]))
   const changed = FIELDS.filter((f) => normalize(input[f]) !== normalize(reading[f]))
-  return done({
-    ...cost,
-    fields,
-    changed,
-    confirmed: input.confirmed_fields ?? [],
-    still_uncertain: input.still_uncertain ?? [],
-    sources,
-    notes: input.notes ?? '',
-  })
+  return done(
+    {
+      ...cost,
+      fields,
+      changed,
+      confirmed: input.confirmed_fields ?? [],
+      still_uncertain: input.still_uncertain ?? [],
+      sources,
+      notes: input.notes ?? '',
+    },
+    Array.isArray(input.set_parallels) ? (input.set_parallels as ParallelGroup[]) : [],
+  )
 }
 
 /** The links the model relied on, kept only if they really came back from a search, with their page titles. */
@@ -485,4 +555,215 @@ async function knownNames(supabase: SupabaseClient): Promise<KnownNames> {
     parallel: distinct('parallel'),
     team: distinct('team'),
   }
+}
+
+// ---- Set parallel lists ----
+
+type SetRef = { year: string; set_name: string }
+type FetchRow = { id: string; year: string; set_name: string; status: string; batch_id: string | null; found: number | null }
+
+const setKey = (s: SetRef) => `${s.year}|${s.set_name}`.toLowerCase().replace(/[^a-z0-9|]/g, '')
+const setRefOf = (row: SetRef): SetRef => ({ year: row.year, set_name: row.set_name })
+
+/**
+ * Fetches each set's parallel list with one web-search request per set. Sets being fetched, or already
+ * fetched with results, are skipped. `now` answers right away (the card form waits for it); otherwise
+ * the requests go out as a half-price batch that pollParallels collects.
+ */
+async function fetchParallels(
+  supabase: SupabaseClient,
+  anthropic: Anthropic,
+  model: Model,
+  requested: unknown[],
+  now: boolean,
+) {
+  const sets = new Map<string, SetRef>()
+  for (const item of requested as Partial<SetRef>[]) {
+    const year = typeof item?.year === 'string' ? item.year.trim() : ''
+    const setName = typeof item?.set_name === 'string' ? item.set_name.trim() : ''
+    if (year && setName) sets.set(setKey({ year, set_name: setName }), { year, set_name: setName })
+  }
+  const { data: existing, error } = await supabase.from('parallel_fetches').select('year, set_name, status, found')
+  if (error) throw error
+  for (const row of existing) {
+    if (row.status === 'pending' || (row.status === 'done' && (row.found ?? 0) > 0)) sets.delete(setKey(row))
+  }
+  const todo = [...sets.values()]
+  if (todo.length === 0) return { submitted: 0, results: [] }
+
+  const { data: claimed, error: claimError } = await supabase
+    .from('parallel_fetches')
+    .upsert(
+      todo.map((s) => ({ ...s, status: 'pending', batch_id: null, found: null, notes: null, error: null })),
+      { onConflict: 'user_id,set_key' },
+    )
+    .select('id, year, set_name, status, batch_id, found')
+  if (claimError) throw claimError
+  const rows = claimed as FetchRow[]
+  const inserts = await insertNamesBySet(supabase)
+
+  if (now) {
+    const results = await Promise.all(rows.map((row) => fetchOneNow(supabase, anthropic, model, row, inserts)))
+    return { submitted: rows.length, results }
+  }
+  try {
+    const batch = await anthropic.messages.batches.create({
+      requests: rows.map((row) => ({
+        custom_id: row.id,
+        params: parallelsRequest(model, row, inserts),
+      })) as unknown as Anthropic.Messages.BatchCreateParams.Request[],
+    })
+    const { error: updateError } = await supabase
+      .from('parallel_fetches')
+      .update({ batch_id: batch.id })
+      .in(
+        'id',
+        rows.map((r) => r.id),
+      )
+    if (updateError) throw updateError
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'unknown error'
+    await supabase
+      .from('parallel_fetches')
+      .update({ status: 'failed', error: `The search couldn’t start (${message}).` })
+      .in(
+        'id',
+        rows.map((r) => r.id),
+      )
+    throw err
+  }
+  return { submitted: rows.length, results: [] }
+}
+
+function parallelsRequest(model: Model, set: SetRef, inserts: Map<string, string[]>) {
+  return {
+    model,
+    max_tokens: 16000,
+    system: 'You research sports trading card checklists for a collector.',
+    ...thinking(model),
+    ...(model === 'claude-haiku-4-5' ? {} : { output_config: { effort: 'low' } }),
+    tools: [searchTool(model), RECORD_PARALLELS_TOOL],
+    messages: [
+      {
+        role: 'user' as const,
+        content: parallelsInstructions(set.year, set.set_name, inserts.get(setKey(set)) ?? []),
+      },
+    ],
+  }
+}
+
+/** One set, answered right away. A long search can pause mid-turn; it's continued a few times. */
+async function fetchOneNow(
+  supabase: SupabaseClient,
+  anthropic: Anthropic,
+  model: Model,
+  row: FetchRow,
+  inserts: Map<string, string[]>,
+) {
+  const request = parallelsRequest(model, row, inserts)
+  const messages: Anthropic.Messages.MessageParam[] = [...request.messages]
+  const spent: UsageRow[] = []
+  try {
+    let message: Anthropic.Messages.Message | null = null
+    for (let turn = 0; turn < 4; turn++) {
+      message = (await anthropic.messages.create({
+        ...request,
+        messages,
+      } as unknown as Anthropic.Messages.MessageCreateParamsNonStreaming)) as Anthropic.Messages.Message
+      spent.push(usageRow('parallels', message, false))
+      if (message.stop_reason !== 'pause_turn') break
+      messages.push({ role: 'assistant', content: message.content })
+    }
+    return await finishFetch(supabase, row, message!)
+  } catch (err) {
+    console.error(err)
+    const error = `The search failed (${err instanceof Error ? err.message : 'unknown error'}).`
+    await supabase.from('parallel_fetches').update({ status: 'failed', error }).eq('id', row.id)
+    return { ...setRefOf(row), found: 0, error }
+  } finally {
+    await logUsage(supabase, spent)
+  }
+}
+
+/** Saves what a parallel-list search recorded and closes its fetch row. */
+async function finishFetch(supabase: SupabaseClient, row: FetchRow, message: Anthropic.Messages.Message) {
+  const call = message.content.find(
+    (block): block is Anthropic.Messages.ToolUseBlock => block.type === 'tool_use' && block.name === 'record_parallels',
+  )
+  if (!call) {
+    const error = 'The search didn’t finish.'
+    await supabase.from('parallel_fetches').update({ status: 'failed', error }).eq('id', row.id)
+    return { ...setRefOf(row), found: 0, error }
+  }
+  const input = call.input as Record<string, unknown>
+  const source = sourcesFrom(message, input)[0]?.url ?? null
+  const groups = Array.isArray(input.groups) ? (input.groups as ParallelGroup[]) : []
+  const rows = rowsFromSearch(row.year, row.set_name, groups, source)
+  await rememberParallels(supabase, rows)
+  const notes = typeof input.notes === 'string' ? input.notes : ''
+  await supabase
+    .from('parallel_fetches')
+    .update({ status: 'done', found: rows.length, notes, error: null })
+    .eq('id', row.id)
+  return { ...setRefOf(row), found: rows.length, notes }
+}
+
+/** Collects finished parallel-list batches. Fetches claimed but never sent are released as failed. */
+async function pollParallels(supabase: SupabaseClient, anthropic: Anthropic) {
+  const { data, error } = await supabase
+    .from('parallel_fetches')
+    .select('id, year, set_name, status, batch_id, found, updated_at')
+    .eq('status', 'pending')
+  if (error) throw error
+  const pending = data as (FetchRow & { updated_at: string })[]
+  const cutoff = Date.now() - STUCK_LOOKUP_MS
+  for (const row of pending) {
+    if (row.batch_id || Date.parse(row.updated_at) > cutoff) continue
+    await supabase
+      .from('parallel_fetches')
+      .update({ status: 'failed', error: 'The search didn’t start.' })
+      .eq('id', row.id)
+      .eq('status', 'pending')
+  }
+  const byId = new Map(pending.map((r) => [r.id, r]))
+  const spent: UsageRow[] = []
+  let stillPending = 0
+  let updated = 0
+  for (const batchId of [...new Set(pending.map((r) => r.batch_id).filter(Boolean))] as string[]) {
+    const batch = await anthropic.messages.batches.retrieve(batchId)
+    if (batch.processing_status !== 'ended') {
+      stillPending += pending.filter((r) => r.batch_id === batchId).length
+      continue
+    }
+    for await (const result of await anthropic.messages.batches.results(batchId)) {
+      const row = byId.get(result.custom_id)
+      if (!row) continue
+      if (result.result.type === 'succeeded') {
+        spent.push(usageRow('parallels', result.result.message, true))
+        await finishFetch(supabase, row, result.result.message)
+      } else {
+        await supabase
+          .from('parallel_fetches')
+          .update({ status: 'failed', error: failureReason(result) })
+          .eq('id', row.id)
+      }
+      updated++
+    }
+  }
+  await logUsage(supabase, spent)
+  return { updated, pending: stillPending }
+}
+
+/** The insert names the collector already uses, per set, so a fetched list reuses their spelling. */
+async function insertNamesBySet(supabase: SupabaseClient): Promise<Map<string, string[]>> {
+  const { data, error } = await supabase.from('cards').select('year, set_name, insert_name').limit(5000)
+  if (error) throw error
+  const bySet = new Map<string, Set<string>>()
+  for (const card of data as (SetRef & { insert_name: string | null })[]) {
+    const name = card.insert_name?.trim()
+    if (!name) continue
+    const key = setKey(card)
+    bySet.set(key, (bySet.get(key) ?? new Set<string>()).add(name))
+  }
+  return new Map([...bySet].map(([key, names]) => [key, [...names]]))
 }

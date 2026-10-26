@@ -2,18 +2,21 @@
  * Rough cost estimates for AI runs, shown before they start. They begin from typical per-card costs
  * and switch to the collector's own averages once the spending log (public.ai_usage) has enough runs.
  */
-export type AiKind = 'read' | 'lookup'
+export type AiKind = 'read' | 'lookup' | 'parallels'
 export type UsageEntry = { kind: string; model: string; cards: number; dollars: number; created_at: string }
 export type Estimate = { expected: number; max: number }
 
 /**
- * Typical dollars per card. Both run through the Batch API (half price); lookups include up to
- * 3 web searches at 1¢ each.
+ * Typical dollars per card (per set for parallel lists). All run through the Batch API (half price);
+ * lookups and parallel lists include up to 3 web searches at 1¢ each.
  */
 const TYPICAL: Record<AiKind, Record<string, number>> = {
   read: { 'claude-sonnet-5-5': 0.015, 'claude-opus-5-5': 0.03, 'claude-haiku-4-5': 0.008 },
   lookup: { 'claude-sonnet-5-5': 0.05, 'claude-opus-5-5': 0.09, 'claude-haiku-4-5': 0.035 },
+  parallels: { 'claude-sonnet-5-5': 0.05, 'claude-opus-5-5': 0.09, 'claude-haiku-4-5': 0.035 },
 }
+/** Asked for right away instead of in a batch: full price on the tokens. */
+const DIRECT = 1.6
 /** Own averages replace the typical figure after this many logged runs of the same kind and model. */
 const MIN_HISTORY = 5
 /** Headroom for a card that costs more than average (long answers, extra searches). */
@@ -34,8 +37,14 @@ export function estimateRead(model: string, cards: number, history: UsageEntry[]
   return { expected: read, max: read * SPREAD + (autoLookup ? cards * perCard('lookup', model, history) * SPREAD : 0) }
 }
 
-export function estimateEach(kind: 'lookup', model: string, cards: number, history: UsageEntry[]): Estimate {
-  const each = perCard(kind, model, history)
+export function estimateEach(
+  kind: 'lookup' | 'parallels',
+  model: string,
+  cards: number,
+  history: UsageEntry[],
+  { now = false } = {},
+): Estimate {
+  const each = perCard(kind, model, history) * (now ? DIRECT : 1)
   return { expected: cards * each, max: cards * each * SPREAD }
 }
 

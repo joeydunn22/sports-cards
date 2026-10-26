@@ -4,6 +4,7 @@ import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
 import { buttonDanger, buttonSecondary } from '../../components/ui'
 import { NO_CARDS, useCards } from '../../hooks/useCards'
+import { NO_PARALLELS, useSetParallels } from '../../hooks/useSetParallels'
 import {
   NO_SCANS,
   useConfirmScan,
@@ -25,6 +26,7 @@ import { useAiApproval } from '../ai/useAiApproval'
 import { AI_MODELS, getAiModel } from './aiModel'
 import { asExtraction, extractionCost, fieldLabel, fieldNotes, sortForReview, type Extraction } from './extraction'
 import { rememberScanValues, scanFormValues } from './scanDefaults'
+import { useParallelLookup } from '../sets/useParallelLookup'
 
 /** Check one scanned card's details, then save it to the collection. */
 export function ReviewScanPage() {
@@ -42,6 +44,8 @@ export function ReviewScanPage() {
   const reread = useRereadScans()
   const lookup = useLookupScans()
   const ai = useAiApproval()
+  const { data: setParallels = NO_PARALLELS } = useSetParallels()
+  const parallelLookup = useParallelLookup(ai)
   useScanPolling(scans)
 
   const index = scans.findIndex((s) => s.id === id)
@@ -127,6 +131,8 @@ export function ReviewScanPage() {
         initialValues={initialValues}
         suggestions={suggestions}
         duplicates={{ cards, askOnSave: true }}
+        setParallels={setParallels}
+        lookUpParallels={parallelLookup}
         onSubmit={handleSubmit}
         footer={
           <button type="button" onClick={handleDiscard} className={`${buttonDanger} mt-2 min-h-12`}>
