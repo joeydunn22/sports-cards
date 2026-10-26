@@ -4,7 +4,7 @@ import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
 import { buttonDanger, buttonSecondary } from '../../components/ui'
 import { NO_CARDS, useCards, useDeleteCard, useUpdateCard } from '../../hooks/useCards'
-import { NO_PARALLELS, useSetParallels } from '../../hooks/useSetParallels'
+import { useSetHelp } from '../sets/useSetHelp'
 import { CardForm } from './CardForm'
 import { CardPhotos } from './CardPhotos'
 import { fromCard, toCardInput, type CardFormValues } from './cardSchema'
@@ -17,7 +17,7 @@ export function EditCardPage() {
   const cards = data ?? NO_CARDS
   const updateCard = useUpdateCard()
   const deleteCard = useDeleteCard()
-  const { data: setParallels = NO_PARALLELS } = useSetParallels()
+  const setHelp = useSetHelp()
   const navigate = useNavigate()
   const suggestions = useMemo(() => buildSuggestions(cards), [cards])
   const card = cards.find((c) => c.id === id)
@@ -57,7 +57,7 @@ export function EditCardPage() {
         initialValues={fromCard(card)}
         suggestions={suggestions}
         duplicates={{ cards, excludeId: card.id, askOnSave: false }}
-        setParallels={setParallels}
+        setHelp={setHelp}
         onSubmit={handleSubmit}
         footer={
           <button type="button" onClick={handleDelete} className={`${buttonDanger} mt-2 min-h-12`}>

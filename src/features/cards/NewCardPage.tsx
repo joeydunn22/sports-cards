@@ -2,10 +2,9 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { PageHeader } from '../../components/PageHeader'
 import { NO_CARDS, useAddQuantity, useCards, useCreateCard } from '../../hooks/useCards'
-import { NO_ENTRIES, useChecklist } from '../../hooks/useChecklist'
-import { NO_PARALLELS, useSetParallels } from '../../hooks/useSetParallels'
 import { useAiApproval } from '../ai/useAiApproval'
 import { useParallelLookup } from '../sets/useParallelLookup'
+import { useSetHelp } from '../sets/useSetHelp'
 import type { Card } from '../../types/card'
 import { CardForm } from './CardForm'
 import { emptyCardForm, toCardInput, type CardFormValues } from './cardSchema'
@@ -14,10 +13,8 @@ import { buildSuggestions, getLastSport, rememberSport } from './suggestions'
 export function NewCardPage() {
   const { data } = useCards()
   const cards = data ?? NO_CARDS
-  const { data: checklist = NO_ENTRIES } = useChecklist()
-  // Your own cards first (newest first), then what checklist searches have learned.
-  const known = useMemo(() => [...cards, ...checklist], [cards, checklist])
-  const { data: setParallels = NO_PARALLELS } = useSetParallels()
+  // The set's checklist (saved cards, Cardpedia, earlier searches) joins these when the form fills in.
+  const setHelp = useSetHelp()
   const ai = useAiApproval()
   const parallelLookup = useParallelLookup(ai)
   const createCard = useCreateCard()
@@ -45,8 +42,8 @@ export function NewCardPage() {
         initialValues={initialValues}
         suggestions={suggestions}
         duplicates={{ cards, askOnSave: true }}
-        autofillFrom={known}
-        setParallels={setParallels}
+        autofillFrom={cards}
+        setHelp={setHelp}
         lookUpParallels={parallelLookup}
         onSubmit={handleSubmit}
       />

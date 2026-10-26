@@ -1,9 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { demoParallels, IS_DEMO } from '../dev/demo'
 import { supabase } from '../lib/supabase'
 import type { SetParallel } from '../features/cards/parallels'
 import { AI_USAGE_KEY } from './useAiSpend'
+import { setKey, setReady, type SetRef } from '../features/sets/setIndex'
+import { KNOWN_SETS_KEY } from './useKnownSets'
 import { callScanFunction } from './useScans'
 
 export type ParallelRow = SetParallel & { id: string; source_url: string | null }
@@ -17,7 +19,7 @@ export type ParallelFetch = {
   error: string | null
   updated_at: string
 }
-export type SetRef = { year: string; set_name: string }
+export type { SetRef }
 export type ParallelInput = SetRef & { insert_name: string; parallel: string; print_run: number | null }
 
 export const SET_PARALLELS_KEY = ['set-parallels'] as const
@@ -25,19 +27,38 @@ const FETCHES_KEY = ['parallel-fetches'] as const
 export const NO_PARALLELS: ParallelRow[] = []
 export const NO_FETCHES: ParallelFetch[] = []
 
-async function fetchParallelRows(): Promise<ParallelRow[]> {
-  if (IS_DEMO) return demoParallels
-  const { data, error } = await supabase
-    .from('set_parallels')
-    .select('id, year, set_name, insert_name, parallel, print_run, source, source_url')
-    .order('year', { ascending: false })
-  if (error) throw error
-  return data
+const parallelsQuery = (set: SetRef) => ({
+  queryKey: [...SET_PARALLELS_KEY, setKey(set)],
+  queryFn: async (): Promise<ParallelRow[]> => {
+    if (IS_DEMO) return demoParallels.filter((p) => setKey(p) === setKey(set))
+    const { data, error } = await supabase
+      .from('set_parallels')
+      .select('id, year, set_name, insert_name, parallel, print_run, source, source_url')
+      .eq('set_key', setKey(set))
+    if (error) throw error
+    return data
+  },
+  staleTime: 60_000,
+})
+
+/**
+ * One set's parallels (public.set_parallels), every insert: from saved cards, Baseball Cardpedia, AI
+ * searches, and the Sets page. A few hundred at most, so one request. Nothing until a set is given.
+ */
+export function useSetParallels(set: SetRef | null) {
+  const ready = set && setReady(set)
+  return useQuery({ ...parallelsQuery(ready ? set : { year: '', set_name: '' }), enabled: Boolean(ready) })
 }
 
-/** Every set's parallels (public.set_parallels): from saved cards, AI searches, and the Sets page. */
-export function useSetParallels() {
-  return useQuery({ queryKey: SET_PARALLELS_KEY, queryFn: fetchParallelRows, staleTime: 60_000 })
+/** The same list, loaded now (or from the cache), for a form field that's being left. */
+export function loadSetParallels(queryClient: QueryClient, set: SetRef): Promise<ParallelRow[]> {
+  return setReady(set) ? queryClient.fetchQuery(parallelsQuery(set)) : Promise.resolve(NO_PARALLELS)
+}
+
+/** Everything that shows a set's parallels or the list of sets. */
+export function invalidateParallels(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: SET_PARALLELS_KEY })
+  void queryClient.invalidateQueries({ queryKey: KNOWN_SETS_KEY })
 }
 
 /** How often to ask whether batched parallel-list searches have finished. */
@@ -65,7 +86,7 @@ export function useParallelFetches() {
       try {
         const { updated } = await callScanFunction<{ updated: number }>({ action: 'poll_parallels' })
         if (updated) {
-          void queryClient.invalidateQueries({ queryKey: SET_PARALLELS_KEY })
+          invalidateParallels(queryClient)
           void queryClient.invalidateQueries({ queryKey: AI_USAGE_KEY })
         }
       } catch {
@@ -83,18 +104,20 @@ type FetchResult = { submitted: number; results: (SetRef & { found: number; note
 
 /**
  * Asks the AI for sets' parallel lists. `now` waits for the answer (the card form) and resolves with the
- * fresh list; otherwise they go out as a half-price batch and arrive within minutes.
+ * first set's fresh list; otherwise they go out as a half-price batch and arrive within minutes.
  */
 export function useFetchParallels() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ sets, model, now }: { sets: SetRef[]; model: string; now: boolean }) => {
       const result = await callScanFunction<FetchResult>({ action: 'parallels', sets, model, now })
-      const list = now ? await queryClient.fetchQuery({ queryKey: SET_PARALLELS_KEY, queryFn: fetchParallelRows }) : null
-      return { ...result, list }
+      if (!now) return { ...result, list: null }
+      await queryClient.invalidateQueries({ queryKey: SET_PARALLELS_KEY })
+      return { ...result, list: await loadSetParallels(queryClient, sets[0]) }
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: FETCHES_KEY })
+      void queryClient.invalidateQueries({ queryKey: KNOWN_SETS_KEY })
       void queryClient.invalidateQueries({ queryKey: AI_USAGE_KEY })
     },
   })
@@ -113,7 +136,7 @@ export function useSaveParallels() {
         )
       if (error) throw error
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: SET_PARALLELS_KEY }),
+    onSettled: () => invalidateParallels(queryClient),
   })
 }
 
@@ -129,11 +152,11 @@ export function useUpdateParallel() {
       if (error) throw error
     },
     onMutate: ({ id, parallel, print_run }) => {
-      queryClient.setQueryData<ParallelRow[]>(SET_PARALLELS_KEY, (old) =>
+      queryClient.setQueriesData<ParallelRow[]>({ queryKey: SET_PARALLELS_KEY }, (old) =>
         old?.map((p) => (p.id === id ? { ...p, parallel, print_run, source: 'manual' } : p)),
       )
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: SET_PARALLELS_KEY }),
+    onSettled: () => invalidateParallels(queryClient),
   })
 }
 
@@ -145,9 +168,9 @@ export function useDeleteParallel() {
       if (error) throw error
     },
     onMutate: (id) => {
-      queryClient.setQueryData<ParallelRow[]>(SET_PARALLELS_KEY, (old) => old?.filter((p) => p.id !== id))
+      queryClient.setQueriesData<ParallelRow[]>({ queryKey: SET_PARALLELS_KEY }, (old) => old?.filter((p) => p.id !== id))
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: SET_PARALLELS_KEY }),
+    onSettled: () => invalidateParallels(queryClient),
   })
 }
 

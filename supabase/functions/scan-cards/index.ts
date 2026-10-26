@@ -6,7 +6,10 @@
 //   POST { action: "parallels", sets: [{ year, set_name }], now?, model? } fetches each set's parallel list
 //     (public.set_parallels): right away when `now` (the card form waits for it), otherwise as a batch.
 //   POST { action: "poll_parallels" } collects finished parallel-list batches.
+//   POST { action: "cardpedia", sets: [{ year, set_name, page? }], again? } reads each baseball set's page on
+//     Baseball Cardpedia (free, no AI) into its parallel list and checklist (see cardpedia.ts).
 // A print run read off a card, checked against its set's parallel list, can settle the parallel for free.
+// Baseball sets get their Cardpedia page the first time a card from them is read, before that check.
 // Every call's actual cost goes in public.ai_usage, which the app subtracts from the credit balance.
 // Runs as the signed-in user, so row-level security applies to every query.
 import Anthropic from 'npm:@anthropic-ai/sdk'
@@ -23,6 +26,7 @@ import {
   type KnownNames,
 } from './prompt.ts'
 import { cacheHint, entryFromSearch, findSpot, resolveFromCache, type Entry } from './cache.ts'
+import { matchPage, parseSetPage, withCollectorInserts } from './cardpedia.ts'
 import { hasList, rainbowHint, rowsFromSearch, settleParallel, type Rainbow } from './rainbow.ts'
 import { usageDollars } from './pricing.ts'
 import { triage } from './triage.ts'
@@ -69,14 +73,90 @@ async function logUsage(supabase: SupabaseClient, rows: UsageRow[]) {
   if (error) console.error('ai_usage insert failed', error)
 }
 
-/** The checklist cache (public.checklist_entries); small enough to load whole. */
-async function loadChecklist(supabase: SupabaseClient): Promise<Entry[]> {
-  const { data, error } = await supabase
-    .from('checklist_entries')
-    .select('year, set_name, insert_name, card_number, player, team, sport, is_rookie, source, source_url')
-  if (error) throw error
-  return data as Entry[]
+/** Supabase caps a response at 1,000 rows, so larger reads come in pages. */
+const PAGE_SIZE = 1000
+
+async function allPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>,
+): Promise<T[]> {
+  const all: T[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1)
+    if (error) throw error
+    all.push(...((data ?? []) as T[]))
+    if ((data?.length ?? 0) < PAGE_SIZE) return all
+  }
 }
+
+/** Same as the database's checklist_norm(): only letters and digits count, in any case. */
+const dbNorm = (value: unknown) => (typeof value === 'string' ? value.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : '')
+/** The database's set_key(year, set_name). */
+const setKey = (s: Record<string, unknown>) => `${dbNorm(s.year)}|${dbNorm(s.set_name)}`
+const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
+
+const ENTRY_COLUMNS = 'year, set_name, insert_name, card_number, player, team, sport, is_rookie, source, source_url'
+const RAINBOW_COLUMNS = 'year, set_name, insert_name, parallel, print_run, source, source_url'
+
+/**
+ * The card database (public.checklist_entries and public.set_parallels) for the cards in hand: a full
+ * checklist is too big to load whole, so each reading's set is loaded once, along with its player's
+ * spots in any set (the checklist cache can match a card by player and number when the set is unsure).
+ */
+function cardDatabase(supabase: SupabaseClient) {
+  const sets = new Map<string, Promise<{ spots: Entry[]; parallels: Rainbow[] }>>()
+  const players = new Map<string, Promise<Entry[]>>()
+
+  const forSet = (reading: Reading) => {
+    const key = setKey(reading)
+    if (key.startsWith('|') || key.endsWith('|')) return Promise.resolve({ spots: [], parallels: [] })
+    let found = sets.get(key)
+    if (!found) {
+      found = Promise.all([
+        allPages<Entry>((from, to) =>
+          supabase.from('checklist_entries').select(ENTRY_COLUMNS).eq('set_key', key).order('id').range(from, to),
+        ),
+        allPages<Rainbow>((from, to) =>
+          supabase.from('set_parallels').select(RAINBOW_COLUMNS).eq('set_key', key).order('id').range(from, to),
+        ),
+      ]).then(([spots, parallels]) => ({ spots, parallels }))
+      sets.set(key, found)
+    }
+    return found
+  }
+
+  const forPlayer = (reading: Reading) => {
+    const key = dbNorm(reading.player)
+    if (!key) return Promise.resolve([])
+    let found = players.get(key)
+    if (!found) {
+      found = allPages<Entry>((from, to) =>
+        supabase.from('checklist_entries').select(ENTRY_COLUMNS).eq('player_key', key).order('id').range(from, to),
+      )
+      players.set(key, found)
+    }
+    return found
+  }
+
+  return {
+    /** Checklist spots this reading could be: its set's, and its player's anywhere. */
+    async spots(reading: Reading): Promise<Entry[]> {
+      const [{ spots }, mine] = await Promise.all([forSet(reading), forPlayer(reading)])
+      const unique = new Map<string, Entry>()
+      for (const e of [...spots, ...mine]) unique.set(`${setKey(e)}|${dbNorm(e.insert_name)}|${dbNorm(e.card_number)}`, e)
+      return [...unique.values()]
+    },
+    /** The parallel list of the reading's set (every insert). */
+    async parallels(reading: Reading): Promise<Rainbow[]> {
+      return (await forSet(reading)).parallels
+    },
+    /** Drops what was loaded for a set (and every player) after new entries were stored. */
+    forget(set: SetRef) {
+      sets.delete(setKey(set))
+      players.clear()
+    },
+  }
+}
+type CardDatabase = ReturnType<typeof cardDatabase>
 
 /** Remembers checklist searches that settled a card. A spot already known (e.g. from a saved card) wins. */
 async function rememberSearches(supabase: SupabaseClient, entries: Entry[]) {
@@ -85,15 +165,6 @@ async function rememberSearches(supabase: SupabaseClient, entries: Entry[]) {
     .from('checklist_entries')
     .upsert(entries, { onConflict: 'user_id,spot_key', ignoreDuplicates: true })
   if (error) console.error('checklist_entries upsert failed', error)
-}
-
-/** Every set's parallel list (public.set_parallels); small enough to load whole. */
-async function loadRainbow(supabase: SupabaseClient): Promise<Rainbow[]> {
-  const { data, error } = await supabase
-    .from('set_parallels')
-    .select('year, set_name, insert_name, parallel, print_run, source, source_url')
-  if (error) throw error
-  return data as Rainbow[]
 }
 
 /** Saves parallels a search found. Anything already known (from a saved card, by hand, or earlier) wins. */
@@ -151,6 +222,9 @@ Deno.serve(async (req) => {
       return json(await fetchParallels(supabase, anthropic, model, body.sets, body.now === true))
     }
     if (body.action === 'poll_parallels') return json(await pollParallels(supabase, anthropic))
+    if (body.action === 'cardpedia' && Array.isArray(body.sets)) {
+      return json(await importRequested(supabase, body.sets, body.again === true))
+    }
     return json({ error: 'Unknown action.' }, 400)
   } catch (err) {
     console.error(err)
@@ -213,75 +287,88 @@ async function poll(supabase: SupabaseClient, anthropic: Anthropic) {
   const lookUpNow = scans.some((s) => s.status === 'processing') ? await autoLookup(supabase) : false
   const learned: Entry[] = []
   const learnedParallels: Rainbow[] = []
-  let checklist: Entry[] | null = null
-  const cached = async () => (checklist ??= await loadChecklist(supabase))
-  let rainbow: Rainbow[] | null = null
-  const parallels = async () => (rainbow ??= await loadRainbow(supabase))
+  const db = cardDatabase(supabase)
+  const finished: Anthropic.Messages.MessageBatchIndividualResponse[] = []
   for (const batchId of batchIds) {
     const batch = await anthropic.messages.batches.retrieve(batchId)
     if (batch.processing_status !== 'ended') {
       stillProcessing += scans.filter((s) => s.batch_id === batchId).length
       continue
     }
-    for await (const result of await anthropic.messages.batches.results(batchId)) {
-      const scan = byId.get(result.custom_id)
-      if (result.result.type === 'succeeded') {
-        spent.push(usageRow(scan?.status === 'looking_up' ? 'lookup' : 'read', result.result.message, true))
-      }
-      if (!scan) continue // reviewed or deleted meanwhile
-      if (scan.status === 'looking_up') {
-        const { update, setParallels } = toLookupUpdate(result, scan.extraction as Reading)
-        // Only if still waiting: the card may have been saved while the lookup ran.
-        const { error: updateError } = await supabase
-          .from('card_scans')
-          .update(update)
-          .eq('id', scan.id)
-          .eq('status', 'looking_up')
-        if (updateError) throw updateError
-        const lookup = (update.extraction as { lookup?: Record<string, unknown> }).lookup
-        const entry = lookup?.fields
-          ? entryFromSearch(
-              lookup.fields as Record<string, unknown>,
-              (lookup.still_uncertain as string[]) ?? [],
-              (lookup.sources as { url: string }[] | undefined)?.[0]?.url ?? null,
-            )
-          : null
-        if (entry) learned.push(entry)
-        const fields = lookup?.fields as Record<string, unknown> | undefined
-        if (setParallels.length && typeof fields?.year === 'string' && typeof fields?.set_name === 'string') {
-          const source = (lookup?.sources as { url: string }[] | undefined)?.[0]?.url ?? null
-          learnedParallels.push(...rowsFromSearch(fields.year, fields.set_name, setParallels, source))
-        }
-      } else {
-        const update = toScanUpdate(result)
-        // The set's parallel list goes first: a print run it knows can settle the parallel for free.
-        if (update.status === 'ready' && update.extraction) {
-          const settled = settleParallel(update.extraction as Reading, await parallels())
-          if (settled) update.extraction = { ...settled.reading, rainbow: settled.rainbow }
-        }
-        const next = update.status === 'ready' ? triage(update.extraction as Reading) : null
-        if (next) update.extraction = { ...update.extraction, triage: next }
-        // With automatic lookups off, the card waits in review with a "Check checklist" button instead.
-        // Otherwise the checklist cache goes first: if it settles every doubt, no web search is needed.
-        if (next === 'lookup' && lookUpNow) {
-          const fromCache = resolveFromCache(update.extraction as Reading, await cached(), FIELDS)
-          if (fromCache) update.extraction = { ...update.extraction, lookup: fromCache }
-          else Object.assign(update, { status: 'looking_up', batch_id: null })
-        }
-        // Claiming the row by its status means two polls at once can't both send its lookup.
-        const { data: claimed, error: updateError } = await supabase
-          .from('card_scans')
-          .update(update)
-          .eq('id', scan.id)
-          .eq('status', 'processing')
-          .select('id')
-        if (updateError) throw updateError
-        if (update.status === 'looking_up' && claimed.length) {
-          toLookUp.push({ ...scan, extraction: update.extraction as Reading })
-        }
-      }
-      updated++
+    for await (const result of await anthropic.messages.batches.results(batchId)) finished.push(result)
+  }
+
+  // First readings, and the baseball sets among them seen for the first time: their Cardpedia page goes
+  // into the card database before any card is checked against it.
+  const readings = new Map<string, ReturnType<typeof toScanUpdate>>()
+  for (const result of finished) {
+    if (byId.get(result.custom_id)?.status === 'processing') readings.set(result.custom_id, toScanUpdate(result))
+  }
+  await importNewSets(
+    supabase,
+    [...readings.values()].flatMap((u) => (u.status === 'ready' && u.extraction ? [u.extraction as Reading] : [])),
+    db,
+  )
+
+  for (const result of finished) {
+    const scan = byId.get(result.custom_id)
+    if (result.result.type === 'succeeded') {
+      spent.push(usageRow(scan?.status === 'looking_up' ? 'lookup' : 'read', result.result.message, true))
     }
+    if (!scan) continue // reviewed or deleted meanwhile
+    if (scan.status === 'looking_up') {
+      const { update, setParallels } = toLookupUpdate(result, scan.extraction as Reading)
+      // Only if still waiting: the card may have been saved while the lookup ran.
+      const { error: updateError } = await supabase
+        .from('card_scans')
+        .update(update)
+        .eq('id', scan.id)
+        .eq('status', 'looking_up')
+      if (updateError) throw updateError
+      const lookup = (update.extraction as { lookup?: Record<string, unknown> }).lookup
+      const entry = lookup?.fields
+        ? entryFromSearch(
+            lookup.fields as Record<string, unknown>,
+            (lookup.still_uncertain as string[]) ?? [],
+            (lookup.sources as { url: string }[] | undefined)?.[0]?.url ?? null,
+          )
+        : null
+      if (entry) learned.push(entry)
+      const fields = lookup?.fields as Record<string, unknown> | undefined
+      if (setParallels.length && typeof fields?.year === 'string' && typeof fields?.set_name === 'string') {
+        const source = (lookup?.sources as { url: string }[] | undefined)?.[0]?.url ?? null
+        learnedParallels.push(...rowsFromSearch(fields.year, fields.set_name, setParallels, source))
+      }
+    } else {
+      const update = readings.get(scan.id) ?? toScanUpdate(result)
+      // The set's parallel list goes first: a print run it knows can settle the parallel for free.
+      if (update.status === 'ready' && update.extraction) {
+        const settled = settleParallel(update.extraction as Reading, await db.parallels(update.extraction as Reading))
+        if (settled) update.extraction = { ...settled.reading, rainbow: settled.rainbow }
+      }
+      const next = update.status === 'ready' ? triage(update.extraction as Reading) : null
+      if (next) update.extraction = { ...update.extraction, triage: next }
+      // With automatic lookups off, the card waits in review with a "Check checklist" button instead.
+      // Otherwise the checklist cache goes first: if it settles every doubt, no web search is needed.
+      if (next === 'lookup' && lookUpNow) {
+        const reading = update.extraction as Reading
+        const fromCache = resolveFromCache(reading, await db.spots(reading), FIELDS)
+        if (fromCache) update.extraction = { ...update.extraction, lookup: fromCache }
+        else Object.assign(update, { status: 'looking_up', batch_id: null })
+      }
+      // Claiming the row by its status means two polls at once can't both send its lookup.
+      const { data: claimed, error: updateError } = await supabase
+        .from('card_scans')
+        .update(update)
+        .eq('id', scan.id)
+        .eq('status', 'processing')
+        .select('id')
+      if (updateError) throw updateError
+      if (update.status === 'looking_up' && claimed.length) {
+        toLookUp.push({ ...scan, extraction: update.extraction as Reading })
+      }
+    }
+    updated++
   }
 
   await logUsage(supabase, spent)
@@ -304,15 +391,16 @@ async function requestLookups(supabase: SupabaseClient, anthropic: Anthropic, id
   if (error) throw error
   const scans = data as ScanWithReading[]
   if (scans.length === 0) return { submitted: 0 }
-  // Cards the set's parallel list or the checklist cache can settle don't need a web search.
-  const checklist = await loadChecklist(supabase)
-  const rainbow = await loadRainbow(supabase)
+  // Cards the set's parallel list or the checklist cache can settle don't need a web search. A baseball
+  // set not looked for on Cardpedia yet is looked for first.
+  const db = cardDatabase(supabase)
+  await importNewSets(supabase, scans.map((s) => s.extraction), db)
   const toSearch: ScanWithReading[] = []
   for (const scan of scans) {
-    const settled = settleParallel(scan.extraction, rainbow)
+    const settled = settleParallel(scan.extraction, await db.parallels(scan.extraction))
     const reading = settled ? { ...settled.reading, rainbow: settled.rainbow } : scan.extraction
     const nothingLeft = settled?.rainbow.kind === 'settled' && !settled.reading.uncertain_fields?.length
-    const fromCache = nothingLeft ? null : resolveFromCache(reading, checklist, FIELDS)
+    const fromCache = nothingLeft ? null : resolveFromCache(reading, await db.spots(reading), FIELDS)
     if (!nothingLeft && !fromCache) {
       toSearch.push({ ...scan, extraction: reading })
       continue
@@ -349,12 +437,15 @@ async function sendLookupsOrRelease(supabase: SupabaseClient, anthropic: Anthrop
 async function submitLookups(supabase: SupabaseClient, anthropic: Anthropic, scans: ScanWithReading[]) {
   const urls = await photoUrls(supabase, scans)
   const system = systemPrompt(await knownNames(supabase))
-  const checklist = await loadChecklist(supabase)
-  const rainbow = await loadRainbow(supabase)
+  const db = cardDatabase(supabase)
+  const known = await Promise.all(
+    scans.map(async (scan) => ({ spots: await db.spots(scan.extraction), rainbow: await db.parallels(scan.extraction) })),
+  )
   const batch = await anthropic.messages.batches.create({
-    requests: scans.map((scan) => {
+    requests: scans.map((scan, i) => {
       const model = isModel(scan.extraction.model) ? scan.extraction.model : DEFAULT_MODEL
-      const hint = [cacheHint(findSpot(scan.extraction, checklist)), rainbowHint(scan.extraction, rainbow)]
+      const { spots, rainbow } = known[i]
+      const hint = [cacheHint(findSpot(scan.extraction, spots)), rainbowHint(scan.extraction, rainbow)]
         .filter(Boolean)
         .join(' ')
       // Without a parallel list for this set yet, the search brings one back if it comes across it.
@@ -562,7 +653,6 @@ async function knownNames(supabase: SupabaseClient): Promise<KnownNames> {
 type SetRef = { year: string; set_name: string }
 type FetchRow = { id: string; year: string; set_name: string; status: string; batch_id: string | null; found: number | null }
 
-const setKey = (s: SetRef) => `${s.year}|${s.set_name}`.toLowerCase().replace(/[^a-z0-9|]/g, '')
 const setRefOf = (row: SetRef): SetRef => ({ year: row.year, set_name: row.set_name })
 
 /**
@@ -766,4 +856,202 @@ async function insertNamesBySet(supabase: SupabaseClient): Promise<Map<string, s
     bySet.set(key, (bySet.get(key) ?? new Set<string>()).add(name))
   }
   return new Map([...bySet].map(([key, names]) => [key, [...names]]))
+}
+
+// ---- Baseball Cardpedia ----
+
+const CARDPEDIA_API = 'https://baseballcardpedia.com/api.php'
+const CARDPEDIA_PAGE = 'https://baseballcardpedia.com/index.php/'
+// MediaWiki asks API clients to say who they are.
+const CARDPEDIA_HEADERS = {
+  'User-Agent': 'sports-cards/1.0 (personal card collection app; https://github.com/joeydunn22/sports-cards)',
+}
+/** Sets looked for in one call; more wait for the next card from them, or for the Sets page. */
+const MAX_IMPORTS = 6
+/** Rows per insert, comfortably inside a request's size limit. */
+const CHUNK = 500
+
+type ImportResult = SetRef & {
+  status: 'done' | 'not_found' | 'failed'
+  page: string | null
+  parallels: number
+  cards: number
+  error: string | null
+}
+
+async function cardpedia(params: Record<string, string>): Promise<Record<string, unknown>> {
+  const query = new URLSearchParams({ format: 'json', formatversion: '2', ...params })
+  const response = await fetch(`${CARDPEDIA_API}?${query}`, {
+    headers: CARDPEDIA_HEADERS,
+    signal: AbortSignal.timeout(25_000),
+  })
+  if (!response.ok) throw new Error(`Baseball Cardpedia answered ${response.status}`)
+  return await response.json()
+}
+
+/** Every page title starting with the year ("2024 Finest", "2024-25 Topps Inception"). */
+async function cardpediaTitles(year: string): Promise<string[]> {
+  const titles: string[] = []
+  let next: string | undefined
+  do {
+    const body = await cardpedia({
+      action: 'query',
+      list: 'allpages',
+      apprefix: year.slice(0, 4),
+      aplimit: 'max',
+      apfilterredir: 'nonredirects',
+      ...(next ? { apcontinue: next } : {}),
+    })
+    const pages = (body.query as { allpages?: { title: string }[] } | undefined)?.allpages ?? []
+    titles.push(...pages.map((p) => p.title))
+    next = (body.continue as { apcontinue?: string } | undefined)?.apcontinue
+  } while (next)
+  return titles
+}
+
+/** A page's HTML, or null when there's no page by that name. */
+async function cardpediaPage(title: string): Promise<{ title: string; html: string } | null> {
+  const body = await cardpedia({ action: 'parse', page: title, prop: 'text', redirects: '1' })
+  if ((body.error as { code?: string } | undefined)?.code === 'missingtitle') return null
+  const parse = body.parse as { title?: string; text?: string } | undefined
+  if (!parse?.text) throw new Error(`Baseball Cardpedia sent no page for ${title}`)
+  return { title: parse.title ?? title, html: parse.text }
+}
+
+async function insertInChunks(supabase: SupabaseClient, table: string, rows: object[], onConflict: string) {
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const { error } = await supabase.from(table).upsert(rows.slice(i, i + CHUNK), { onConflict, ignoreDuplicates: true })
+    if (error) throw error
+  }
+}
+
+/**
+ * Reads one set's Cardpedia page into the card database and records how it went. The page is found by
+ * name (see matchPage) unless one is given. Its parallels replace earlier Cardpedia and AI-searched ones
+ * for the set; parallels from saved cards or typed by hand, and checklist spots already known, are kept.
+ */
+async function importSet(
+  supabase: SupabaseClient,
+  set: SetRef,
+  { page, titles, inserts }: { page?: string; titles: (year: string) => Promise<string[]>; inserts: Map<string, string[]> },
+): Promise<ImportResult> {
+  const base = { ...setRefOf(set), page: null, parallels: 0, cards: 0, error: null }
+  let result: ImportResult
+  try {
+    const match = page
+      ? (matchPage(set.year, set.set_name, [page]) ?? { title: page, variant: null })
+      : matchPage(set.year, set.set_name, await titles(set.year))
+    const found = match && (await cardpediaPage(match.title))
+    if (!match || !found) {
+      const error = page ? `Baseball Cardpedia has no page called “${page}”.` : null
+      result = { ...base, status: 'not_found', error }
+    } else {
+      const parsed = parseSetPage(found.html, match.variant)
+      const theirs = inserts.get(setKey(set)) ?? []
+      const source_url = CARDPEDIA_PAGE + encodeURIComponent(found.title.replace(/ /g, '_'))
+      const tagged = { source: 'cardpedia', source_url }
+      const parallels = withCollectorInserts(parsed.parallels, theirs).map((p) => ({ ...setRefOf(set), ...p, ...tagged }))
+      const cards = withCollectorInserts(parsed.cards, theirs).map((c) => ({
+        ...setRefOf(set),
+        ...c,
+        team: null,
+        sport: null,
+        ...tagged,
+      }))
+      const key = setKey(set)
+      if (parallels.length) {
+        const { error } = await supabase.from('set_parallels').delete().eq('set_key', key).in('source', ['cardpedia', 'search'])
+        if (error) throw error
+        await insertInChunks(supabase, 'set_parallels', parallels, 'user_id,parallel_key')
+      }
+      if (cards.length) {
+        const { error } = await supabase.from('checklist_entries').delete().eq('set_key', key).eq('source', 'cardpedia')
+        if (error) throw error
+        await insertInChunks(supabase, 'checklist_entries', cards, 'user_id,spot_key')
+      }
+      result = {
+        ...base,
+        status: 'done',
+        page: match.variant ? `${found.title} (${match.variant})` : found.title,
+        parallels: parallels.length,
+        cards: cards.length,
+      }
+    }
+  } catch (err) {
+    console.error(err)
+    result = { ...base, status: 'failed', error: err instanceof Error ? err.message : 'unknown error' }
+  }
+  const { error } = await supabase.from('cardpedia_imports').upsert(result, { onConflict: 'user_id,set_key' })
+  if (error) console.error('cardpedia_imports upsert failed', error)
+  return result
+}
+
+/** Several sets, a few at a time, sharing each year's title list. */
+async function importSets(supabase: SupabaseClient, sets: (SetRef & { page?: string })[]): Promise<ImportResult[]> {
+  if (sets.length === 0) return []
+  const years = new Map<string, Promise<string[]>>()
+  const titles = (year: string) => {
+    let found = years.get(year.slice(0, 4))
+    if (!found) {
+      found = cardpediaTitles(year)
+      years.set(year.slice(0, 4), found)
+    }
+    return found
+  }
+  const inserts = await insertNamesBySet(supabase)
+  const results: ImportResult[] = []
+  for (let i = 0; i < sets.length; i += 3) {
+    const some = sets.slice(i, i + 3).map((s) => importSet(supabase, setRefOf(s), { page: s.page, titles, inserts }))
+    results.push(...(await Promise.all(some)))
+  }
+  return results
+}
+
+const isBaseball = (sport: unknown) => /baseball/i.test(text(sport))
+
+/** The keys of the sets that were already looked for on Cardpedia. */
+async function importedSets(supabase: SupabaseClient, keys: string[]): Promise<Set<string>> {
+  const { data, error } = await supabase.from('cardpedia_imports').select('set_key').in('set_key', keys)
+  if (error) throw error
+  return new Set(data.map((row) => row.set_key as string))
+}
+
+/**
+ * Baseball sets among these readings that were never looked for on Cardpedia get looked for now, so
+ * their parallel list and checklist are there before the readings are checked against them.
+ */
+async function importNewSets(supabase: SupabaseClient, readings: Reading[], db: CardDatabase) {
+  const wanted = new Map<string, SetRef>()
+  for (const reading of readings) {
+    const unsure = new Set(reading.uncertain_fields ?? [])
+    const set = { year: text(reading.year), set_name: text(reading.set_name) }
+    if (!isBaseball(reading.sport) || unsure.has('year') || unsure.has('set_name') || !set.year || !set.set_name) continue
+    wanted.set(setKey(set), set)
+  }
+  if (wanted.size === 0) return
+  try {
+    const done = await importedSets(supabase, [...wanted.keys()])
+    const todo = [...wanted].filter(([key]) => !done.has(key)).map(([, set]) => set).slice(0, MAX_IMPORTS)
+    await importSets(supabase, todo)
+    for (const set of todo) db.forget(set)
+  } catch (err) {
+    // A convenience: the readings are saved either way, and a paid lookup can still settle them.
+    console.error('Cardpedia lookup skipped', err)
+  }
+}
+
+/**
+ * The Sets page and the card form: sets to look for. One looked for before is skipped unless `again`
+ * or a page is named for it.
+ */
+async function importRequested(supabase: SupabaseClient, requested: unknown[], again: boolean) {
+  const sets = new Map<string, SetRef & { page?: string }>()
+  for (const item of requested as Partial<SetRef & { page: string }>[]) {
+    const set = { year: text(item?.year), set_name: text(item?.set_name) }
+    const page = text(item?.page)
+    if (set.year && set.set_name) sets.set(setKey(set), page ? { ...set, page } : set)
+  }
+  const done = again ? new Set<string>() : await importedSets(supabase, [...sets.keys()])
+  const todo = [...sets].filter(([key, set]) => set.page || !done.has(key)).map(([, set]) => set)
+  return { results: await importSets(supabase, todo.slice(0, 25)) }
 }

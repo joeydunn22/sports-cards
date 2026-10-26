@@ -119,6 +119,51 @@ export type Database = {
         }
         Relationships: []
       }
+      cardpedia_imports: {
+        Row: {
+          cards: number
+          created_at: string
+          error: string | null
+          id: string
+          page: string | null
+          parallels: number
+          set_key: string | null
+          set_name: string
+          status: string
+          updated_at: string
+          user_id: string
+          year: string
+        }
+        Insert: {
+          cards?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          page?: string | null
+          parallels?: number
+          set_key?: string | null
+          set_name: string
+          status: string
+          updated_at?: string
+          user_id?: string
+          year: string
+        }
+        Update: {
+          cards?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          page?: string | null
+          parallels?: number
+          set_key?: string | null
+          set_name?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          year?: string
+        }
+        Relationships: []
+      }
       cards: {
         Row: {
           back_image_path: string | null
@@ -229,6 +274,8 @@ export type Database = {
           insert_name: string
           is_rookie: boolean
           player: string
+          player_key: string | null
+          set_key: string | null
           set_name: string
           source: string
           source_url: string | null
@@ -246,6 +293,8 @@ export type Database = {
           insert_name?: string
           is_rookie?: boolean
           player: string
+          player_key?: string | null
+          set_key?: string | null
           set_name: string
           source: string
           source_url?: string | null
@@ -263,6 +312,8 @@ export type Database = {
           insert_name?: string
           is_rookie?: boolean
           player?: string
+          player_key?: string | null
+          set_key?: string | null
           set_name?: string
           source?: string
           source_url?: string | null
@@ -343,6 +394,7 @@ export type Database = {
           parallel: string
           parallel_key: string | null
           print_run: number | null
+          set_key: string | null
           set_name: string
           source: string
           source_url: string | null
@@ -357,6 +409,7 @@ export type Database = {
           parallel: string
           parallel_key?: string | null
           print_run?: number | null
+          set_key?: string | null
           set_name: string
           source: string
           source_url?: string | null
@@ -371,6 +424,7 @@ export type Database = {
           parallel?: string
           parallel_key?: string | null
           print_run?: number | null
+          set_key?: string | null
           set_name?: string
           source?: string
           source_url?: string | null
@@ -382,7 +436,17 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      known_sets: {
+        Row: {
+          cards: number | null
+          has_list: boolean | null
+          parallels: number | null
+          set_key: string | null
+          set_name: string | null
+          year: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       checklist_norm: { Args: { value: string }; Returns: string }
@@ -396,6 +460,7 @@ export type Database = {
         Returns: string
       }
       keepalive: { Args: never; Returns: string }
+      set_key: { Args: { set_name: string; year: string }; Returns: string }
       set_parallel_key: {
         Args: {
           insert_name: string

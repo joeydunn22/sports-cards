@@ -13,8 +13,7 @@ import {
 } from '../../hooks/usePasskeys'
 import { ImportExportSections } from '../import-export/ImportExportPage'
 import { AI_MODELS, getAiModel, setAiModel, type AiModel } from '../scan/aiModel'
-import { NO_ENTRIES, useChecklist } from '../../hooks/useChecklist'
-import { NO_PARALLELS, useSetParallels } from '../../hooks/useSetParallels'
+import { NO_KNOWN_SETS, useKnownSets } from '../../hooks/useKnownSets'
 import { AiCreditSetting } from './AiCreditSetting'
 
 export function MorePage() {
@@ -141,15 +140,16 @@ function PasskeySetting() {
 
 /** The card database (set parallel lists and checklist spots), opened on the Sets page. */
 function CardDatabase() {
-  const { data: entries = NO_ENTRIES } = useChecklist()
-  const { data: parallels = NO_PARALLELS } = useSetParallels()
-  const sets = new Set([...entries, ...parallels].map((e) => `${e.year}|${e.set_name}`.toLowerCase())).size
+  const { data: known = NO_KNOWN_SETS } = useKnownSets()
+  const sets = known.length
+  const parallels = known.reduce((n, s) => n + s.parallels, 0)
+  const cards = known.reduce((n, s) => n + s.cards, 0)
   return (
     <Link to="/sets" className={`${panel} flex items-center justify-between gap-3 p-4 active:bg-slate-900`}>
       <div className="min-w-0">
         <h2 className="text-lg font-semibold">Sets</h2>
         <p className="text-sm text-slate-400">
-          {sets} {sets === 1 ? 'set' : 'sets'} known: {parallels.length} parallels, {entries.length} cards. Get sets
+          {sets} {sets === 1 ? 'set' : 'sets'} known: {parallels.toLocaleString()} parallels, {cards.toLocaleString()} cards. Get sets
           ready before scanning, and fix anything wrong.
         </p>
       </div>

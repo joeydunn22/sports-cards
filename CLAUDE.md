@@ -51,8 +51,10 @@ src/
     import-export/ cardCsv.ts (CSV <-> cards, validation), ImportExportPage.tsx (sections shown on More)
     scan/          captureState.ts (photos -> card spots, pairing), extraction.ts (AI reading + lookup -> form, cost, inbox sections),
                    scanDefaults.ts, aiModel.ts, CapturePage, PhotoStep, CropPreview, ScanPage (inbox), ReviewScanPage
-    sets/          SetsPage (the card database by set: get sets ready, import parallels), SetDetailPage (fix entries),
-                   setIndex.ts (grouping, set lines, parallels CSV), useParallelLookup (form's paid lookup button)
+    sets/          SetsPage (the card database by set: get sets ready, import parallels), SetDetailPage (fix entries,
+                   pick a set's Cardpedia page), setIndex.ts (grouping, set keys, set lines, parallels CSV),
+                   useSetHelp (the form's per-set parallels + checklist, free Cardpedia lookup), useParallelLookup
+                   (form's paid lookup button)
     more/          MorePage: import/export, AI model choice, sign out
   lib/
     supabase.ts    Supabase client (single instance)
@@ -61,7 +63,8 @@ src/
     format.ts      formatSerial(), formatMoney()
     cardDetect.ts  finds cards in a photo (pure, tested); photos.ts decodes, crops and compresses in the browser
   hooks/           useAuth, usePasskeys (Face ID), useCards, useScans (inbox, upload, AI submit/poll), usePhotos (signed URLs, upload),
-                   useSessionState
+                   useSessionState, useSetParallels / useChecklist (one set at a time), useKnownSets (Sets page counts),
+                   useCardpedia (imports)
   dev/             demo.ts: dev-only `?demo` mode with sample cards, for checking the UI without logging in
   types/           domain types (Card, CardInput) derived from DB types
   test/            Vitest setup and the makeCard() test fixture
@@ -71,7 +74,8 @@ supabase/
     scan-cards/    Edge Function: sends inbox photos to Claude as a Message Batch and stores the readings;
                    triage.ts decides which cards get one checklist pass, rainbow.ts settles a parallel from the
                    print run, cache.ts settles cards from the card database first, pricing.ts logs costs (all
-                   tested by Vitest). Also fetches sets' parallel lists (action "parallels").
+                   tested by Vitest). Also fetches sets' parallel lists (action "parallels"), and reads baseball
+                   sets from Baseball Cardpedia (cardpedia.ts: page matching + parsing, tested; action "cardpedia").
                    Deploy with `npx supabase functions deploy scan-cards --use-api` (no Docker needed).
 .github/
   workflows/
@@ -187,6 +191,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - **AI spending (built 2026-10-05):** every AI action goes through `useAiApproval` (cost estimate dialog; "Ask before AI runs" can be turned off on More, but a run that could exceed the credit left always asks). The function logs each call's actual cost to `ai_usage`; More shows credit left = the balance I enter from the Console minus logged spend (Anthropic has no balance API, and its cost Admin API isn't open to individual accounts). Settings live in `app_settings` (also `auto_lookup`: automatic checklist searches after reading). Estimates in `costEstimate.ts` start from typical figures and switch to my own averages after 5 runs.
 - **Card database / checklist cache (built 2026-10-05, my choice over imported checklists or a paid API):** `checklist_entries`, one row per checklist spot (year + set + insert + card #). A trigger on `cards` keeps it in step with saved cards (trusted, source `collection`); checklist searches that settle a card's identity add `search` rows, never overriding a saved card. Before any checklist web search, the function tries `cache.ts`: if the cache answers every doubt, the card is settled free; otherwise the matching entry goes into the search prompt as a hint. Add card's free fill-in uses it too. More shows its size.
 - **Set parallel lists (built 2026-10-25, untested with real data):** `set_parallels`, one row per year + set + insert + parallel with its print run, so a print run names the parallel (2011 Bowman Chrome Draft /5 = Red Refractor). Learned from saved cards (trigger), fetched by AI once per set (`parallel_fetches`; batch from the Sets page's "Get sets ready", or right away from the form's "Look up parallels" button), or added/imported by hand on the Sets page (`manual`, never overwritten). Scans settle an unsure parallel from it for free before triage; a checklist search also brings back the list when the set has none. The form fills the parallel or print run, offers the 1/1 choices, and warns on a mismatch. The Sets page (from More) replaced the "Card database" count and shows both parallels and checklist spots per set.
+- **Baseball Cardpedia (built 2026-10-25, untested with real cards; my collection is mostly baseball, mostly 2010 on):** baseballcardpedia.com is a free wiki with an open MediaWiki API (TCDB, Beckett, Topps and Panini block server requests). `cardpedia.ts` matches a set to a page ("Topps Finest" → "2024 Finest", "Bowman Chrome Draft" → the Bowman Draft page's Chrome rows) and parses its odds table (every parallel with its print run, by insert) and checklist, with no AI and no cost. Rows go in `set_parallels` / `checklist_entries` as source `cardpedia` (replacing AI-searched parallels; saved cards and hand entries win), and `cardpedia_imports` records the page used per set. It runs automatically for baseball sets the first time a card from them is read in a scan (before triage, so a print run settles the parallel for free), when a baseball set is entered in the form, and first in "Get sets ready" (paid AI only for sets it doesn't have). The set page shows the source page and can point a set at another page. Both tables now load one set at a time (`set_key` / `player_key` columns, `known_sets` view for counts), since full checklists pass Supabase's 1,000-row cap. Verified from Supabase's servers: 2024 Topps reads 215 parallels and 3,572 cards in about 0.6 s.
 - **Manual-entry fill-in (built 2026-10-05; AI lookup button removed at my request, since I expect little manual entry):** leaving Player, Year, Set or Card # fills blanks for free from matching cards in my collection (`autofill.ts`).
 
 ## Roadmap

@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Field, inputClass } from '../../components/Field'
 import { Icon } from '../../components/Icon'
@@ -12,6 +12,10 @@ import { fieldName, fillFromCollection, type Spot } from './autofill'
 import { DuplicateNotice, DuplicatePrompt } from './DuplicateNotice'
 import { findDuplicates, type DuplicateMatch } from './duplicates'
 import { hasParallelList, matchParallel, parallelSuggestions, type SetParallel } from './parallels'
+import type { SetHelp } from '../sets/useSetHelp'
+
+/** How long the set fields rest before the form loads what's known about that set. */
+const SET_SETTLE_MS = 400
 
 export type SuggestionField =
   | 'player'
@@ -52,10 +56,16 @@ type CardFormProps = {
   fieldNotes?: Partial<Record<keyof CardFormValues, string>>
   /** The collection, to flag cards already in it. `askOnSave` offers to merge plain extra copies. */
   duplicates?: { cards: Card[]; excludeId?: string; askOnSave: boolean }
-  /** Fill blank fields from matching cards in the collection when Player, Year, Set or Card # is left. */
+  /**
+   * Fill blank fields from matching cards in the collection (and the set's checklist, with `setHelp`)
+   * when Player, Year, Set or Card # is left.
+   */
   autofillFrom?: Spot[]
-  /** Every set's parallels: fills the parallel from the print run (or back), and flags mismatches. */
-  setParallels?: SetParallel[]
+  /**
+   * The set's parallel list and checklist (useSetHelp): fills the parallel from the print run (or back)
+   * and flags mismatches. A baseball set is looked up on Baseball Cardpedia, free, the first time.
+   */
+  setHelp?: SetHelp
   /** A paid lookup of a set's parallel list, offered when none is known. Resolves with the fresh list. */
   lookUpParallels?: {
     run: (year: string, setName: string) => Promise<SetParallel[] | null>
@@ -77,9 +87,10 @@ export function CardForm({
   fieldNotes = {},
   duplicates,
   autofillFrom,
-  setParallels,
+  setHelp,
   lookUpParallels,
 }: CardFormProps) {
+  const setParallels = setHelp?.parallels
   const {
     register,
     handleSubmit,
@@ -106,19 +117,34 @@ export function CardForm({
     return () => window.clearTimeout(timer)
   }, [status])
 
-  const [setName, isRookie, isAuto, isPatch, isRelic, isGraded] = useWatch({
+  const [setName, sport, isRookie, isAuto, isPatch, isRelic, isGraded] = useWatch({
     control,
-    name: ['set_name', 'is_rookie', 'is_auto', 'is_patch', 'is_relic', 'is_graded'],
+    name: ['set_name', 'sport', 'is_rookie', 'is_auto', 'is_patch', 'is_relic', 'is_graded'],
   })
   const [player, year, insertName, parallel, cardNumber, serial, printRun, cert] = useWatch({
     control,
     name: ['player', 'year', 'insert_name', 'parallel', 'card_number', 'serial_number', 'print_run', 'cert_number'],
   })
+
+  // Once the set fields settle, load what's known about that set (latest setHelp, without re-running).
+  const help = useRef(setHelp)
+  useEffect(() => {
+    help.current = setHelp
+  })
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => help.current?.onSetChange({ year, set_name: setName, sport }),
+      SET_SETTLE_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [year, setName, sport])
+
   const spot = { year, set_name: setName, insert_name: insertName }
   const parallelMatch = setParallels ? matchParallel(setParallels, { ...spot, parallel, print_run: printRun }) : null
   const offerLookup =
     lookUpParallels &&
     setParallels &&
+    !setHelp?.busy &&
     year.trim() &&
     setName.trim() &&
     (printRun.trim() || parallel.trim()) &&
@@ -192,20 +218,24 @@ export function CardForm({
     }
   }
 
-  // Free: fill blanks from the collection when an identifying field is left.
-  function autofill() {
-    fillParallel()
+  // Free: fill blanks from the collection and the set's checklist when an identifying field is left.
+  async function autofill() {
+    const known = setHelp ? await setHelp.load(getValues()) : null
+    if (known) fillParallel(known.parallels)
     if (!autofillFrom) return
-    const fill = fillFromCollection(getValues(), autofillFrom)
+    const fill = fillFromCollection(getValues(), [...autofillFrom, ...(known?.spots ?? [])])
     if (!fill) return
     apply(fill.values)
     setFilledNote(`Filled ${fill.fields.map(fieldName).join(', ')} from ${fill.source}.`)
   }
 
+  async function refillParallel(options: { from?: 'parallel' | 'print_run' } = {}) {
+    if (setHelp) fillParallel((await setHelp.load(getValues())).parallels, options)
+  }
+
   // Free: the set's parallel list names the parallel from its print run, or the print run from the parallel.
   // Leaving one of the two fills only the other, so a field cleared on purpose stays blank.
-  function fillParallel(list = setParallels, { from }: { from?: 'parallel' | 'print_run' } = {}) {
-    if (!list) return
+  function fillParallel(list: SetParallel[], { from }: { from?: 'parallel' | 'print_run' } = {}) {
     const match = matchParallel(list, getValues())
     if (match?.kind === 'fill' && from !== 'parallel') {
       apply({ parallel: match.parallel })
@@ -287,7 +317,7 @@ export function CardForm({
               list: 'player',
               autoCapitalize: 'words',
               autoFocus: mode === 'new',
-              onBlur: autofill,
+              onBlur: () => void autofill(),
             })}
           </Field>
           <Field
@@ -298,7 +328,7 @@ export function CardForm({
             warning={fieldNotes.year}
             hint="e.g. 2023 or 2023-24"
           >
-            {textInput('year', { list: 'year', onBlur: autofill })}
+            {textInput('year', { list: 'year', onBlur: () => void autofill() })}
           </Field>
           <Field
             label="Card #"
@@ -307,7 +337,7 @@ export function CardForm({
             error={errors.card_number?.message}
             warning={fieldNotes.card_number}
           >
-            {textInput('card_number', { autoCapitalize: 'characters', onBlur: autofill })}
+            {textInput('card_number', { autoCapitalize: 'characters', onBlur: () => void autofill() })}
           </Field>
           <Field
             label="Set"
@@ -318,7 +348,7 @@ export function CardForm({
             hint="The product, no year or color: Topps Finest, Bowman Chrome, Panini Prizm"
             className="col-span-2"
           >
-            {textInput('set_name', { list: 'set_name', autoCapitalize: 'words', onBlur: autofill })}
+            {textInput('set_name', { list: 'set_name', autoCapitalize: 'words', onBlur: () => void autofill() })}
           </Field>
           <Field label="Sport" htmlFor="sport" required error={errors.sport?.message} warning={fieldNotes.sport}>
             {textInput('sport', { list: 'sport', autoCapitalize: 'words' })}
@@ -328,6 +358,7 @@ export function CardForm({
           </Field>
         </div>
         {filledNote && <p className="mt-3 text-xs text-emerald-300">{filledNote}</p>}
+        {setHelp?.note && <p className="mt-3 text-xs text-slate-400">{setHelp.note}</p>}
       </FormSection>
 
       <FormSection title="Version">
@@ -339,7 +370,7 @@ export function CardForm({
             hint="Named subset, blank for base: Rookie Autographs, Future Stars"
             className="col-span-2"
           >
-            {textInput('insert_name', { list: 'insert_name', autoCapitalize: 'words', onBlur: () => fillParallel() })}
+            {textInput('insert_name', { list: 'insert_name', autoCapitalize: 'words', onBlur: () => void refillParallel() })}
           </Field>
           <Field
             label="Parallel"
@@ -351,7 +382,7 @@ export function CardForm({
             {textInput('parallel', {
               list: 'parallel',
               autoCapitalize: 'words',
-              onBlur: () => fillParallel(setParallels, { from: 'parallel' }),
+              onBlur: () => void refillParallel({ from: 'parallel' }),
             })}
           </Field>
           <div className="col-span-2 flex flex-col gap-1">
@@ -372,7 +403,7 @@ export function CardForm({
                 inputMode="numeric"
                 placeholder="99"
                 className={inputClass}
-                {...register('print_run', { onBlur: () => fillParallel(setParallels, { from: 'print_run' }) })}
+                {...register('print_run', { onBlur: () => void refillParallel({ from: 'print_run' }) })}
               />
             </div>
             {errors.serial_number || errors.print_run ? (

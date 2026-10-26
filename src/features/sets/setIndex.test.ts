@@ -1,24 +1,44 @@
 import { describe, expect, it } from 'vitest'
-import { listSets, parseParallelsCsv, parseSetLines, setPath } from './setIndex'
+import { cardpediaCandidates, listSets, parseParallelsCsv, parseSetLines, setKey, setPath } from './setIndex'
 
 const bcd = { year: '2011', set_name: 'Bowman Chrome Draft' }
 
 describe('listSets', () => {
-  it('merges parallels, checklist spots and fetches per set, newest year first', () => {
+  it('merges what’s known, fetches and Cardpedia imports per set, newest year first', () => {
     const sets = listSets(
       [
-        { ...bcd, source: 'search' },
-        { ...bcd, source: 'collection' },
-        { year: '2023', set_name: 'Topps Finest', source: 'collection' },
+        { ...bcd, parallels: 2, cards: 1, has_list: true },
+        { year: '2023', set_name: 'Topps Finest', parallels: 1, cards: 0, has_list: false },
       ],
-      [{ year: '2011', set_name: 'bowman chrome draft' }],
       [{ year: '2024', set_name: 'Topps Chrome', status: 'pending' }],
+      [{ year: '2011', set_name: 'bowman chrome draft', status: 'done', parallels: 9 }],
     )
-    expect(sets.map((s) => [s.year, s.set_name, s.parallels, s.cards, s.hasList, s.fetch?.status ?? null])).toEqual([
-      ['2024', 'Topps Chrome', 0, 0, false, 'pending'],
-      ['2023', 'Topps Finest', 1, 0, false, null],
-      ['2011', 'Bowman Chrome Draft', 2, 1, true, null],
+    expect(
+      sets.map((s) => [s.year, s.set_name, s.parallels, s.cards, s.hasList, s.fetch?.status ?? null, s.cardpedia?.status ?? null]),
+    ).toEqual([
+      ['2024', 'Topps Chrome', 0, 0, false, 'pending', null],
+      ['2023', 'Topps Finest', 1, 0, false, null, null],
+      ['2011', 'Bowman Chrome Draft', 2, 1, true, null, 'done'],
     ])
+  })
+})
+
+describe('setKey', () => {
+  it('matches the database’s set_key: only letters and digits, any case', () => {
+    expect(setKey({ year: '2023-24', set_name: 'Topps Allen & Ginter’s' })).toBe('202324|toppsallenginters')
+  })
+})
+
+describe('cardpediaCandidates', () => {
+  it('picks sets never looked up that aren’t known to be another sport', () => {
+    const finest = { year: '2023', set_name: 'Topps Finest' }
+    const prizm = { year: '2023', set_name: 'Panini Prizm' }
+    const fresh = { year: '2024', set_name: 'Topps Chrome' }
+    const cards = [
+      { ...finest, sport: 'Baseball' },
+      { ...prizm, sport: 'Football' },
+    ]
+    expect(cardpediaCandidates([bcd, finest, prizm, fresh], cards, [bcd])).toEqual([finest, fresh])
   })
 })
 
