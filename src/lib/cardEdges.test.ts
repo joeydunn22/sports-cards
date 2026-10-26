@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Pixels } from './cardDetect'
-import { findCardEdges } from './cardEdges'
-import type { Point, Quad } from './photoEdit'
+import { findCardEdges, type CardOutline } from './cardEdges'
+import type { Point } from './photoEdit'
 
 type Colour = [number, number, number]
 
@@ -47,9 +47,9 @@ function inside(quad: Point[], x: number, y: number) {
 }
 
 /** Largest distance from a found corner (normalized) to the expected one (pixels). */
-function cornerError(found: Quad | null, expected: Point[], width: number, height: number) {
+function cornerError(found: CardOutline | null, expected: Point[], width: number, height: number) {
   if (!found) return Infinity
-  return Math.max(...found.map((p, i) => Math.hypot(p.x * width - expected[i].x, p.y * height - expected[i].y)))
+  return Math.max(...found.quad.map((p, i) => Math.hypot(p.x * width - expected[i].x, p.y * height - expected[i].y)))
 }
 
 const TEAL: Colour = [40, 170, 160]
@@ -62,7 +62,7 @@ describe('findCardEdges', () => {
     expect(cornerError(findCardEdges(photo), card, 400, 560)).toBeLessThan(4)
   })
 
-  it('takes the toploader around the card, not the card or a frame printed inside it', () => {
+  it('crops to the card inside a toploader, not to a frame printed inside the card', () => {
     const toploader = turned(210, 280, 296, 400, 0) // 0.74, a toploader as photographed
     const card = turned(210, 285, 250, 350, 0)
     const frame = turned(210, 285, 210, 294, 0) // a frame line printed inside the card, card-shaped too
@@ -70,7 +70,27 @@ describe('findCardEdges', () => {
     const photo = rgb(420, 560, (x, y) =>
       onFrame(x, y) ? [20, 20, 20] : inside(card, x, y) ? [215, 210, 200] : inside(toploader, x, y) ? PLASTIC : carpet(x, y),
     )
-    expect(cornerError(findCardEdges(photo), toploader, 420, 560)).toBeLessThan(4)
+    const found = findCardEdges(photo)
+    expect(cornerError(found, card, 420, 560)).toBeLessThan(4)
+    expect(found?.toploader).not.toBeNull()
+  })
+
+  it('keeps a card with no toploader whole, even with a frame printed inside it', () => {
+    const card = turned(210, 285, 250, 350, 0)
+    const frame = turned(210, 285, 220, 308, 0)
+    const onFrame = (x: number, y: number) => inside(frame, x, y) && !inside(turned(210, 285, 214, 302, 0), x, y)
+    const photo = rgb(420, 560, (x, y) => (onFrame(x, y) ? [20, 20, 20] : inside(card, x, y) ? [215, 210, 200] : carpet(x, y)))
+    const found = findCardEdges(photo)
+    expect(cornerError(found, card, 420, 560)).toBeLessThan(4)
+    expect(found?.toploader).toBeNull()
+  })
+
+  it('keeps the toploader when the card inside it has no clear edge', () => {
+    const toploader = turned(210, 280, 296, 400, 0)
+    const photo = rgb(420, 560, (x, y) => (inside(toploader, x, y) ? PLASTIC : carpet(x, y)))
+    const found = findCardEdges(photo)
+    expect(cornerError(found, toploader, 420, 560)).toBeLessThan(4)
+    expect(found?.toploader).toBeNull()
   })
 
   it('sees a card that differs from the plastic in colour but not brightness', () => {

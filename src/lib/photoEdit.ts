@@ -1,5 +1,6 @@
 import { borderMean, dilate, otsuThreshold, toGray, type Pixels } from './cardDetect'
 import { EDGE_MAX, findCardEdges } from './cardEdges'
+import { autoLight } from './photoLight'
 
 /**
  * Touch-up for a saved card photo, all in the browser: flattening a crooked card into an upright
@@ -113,7 +114,7 @@ function sample({ data, width, height }: Pixels, fx: number, fy: number, out: Ui
  */
 export function findCardCorners(pixels: Pixels): Quad {
   return (
-    findCardEdges(downscale(pixels, EDGE_MAX)) ?? detectCardCorners(downscale(pixels, DETECT_MAX_EDGE)) ?? insetQuad(FALLBACK_INSET)
+    findCardEdges(downscale(pixels, EDGE_MAX))?.quad ?? detectCardCorners(downscale(pixels, DETECT_MAX_EDGE)) ?? insetQuad(FALLBACK_INSET)
   )
 }
 
@@ -351,7 +352,7 @@ const MAX_FADE = 0.08
  */
 const FLAT_SPREAD = 20
 
-export type TouchUpChange = 'straightened' | 'glare'
+export type TouchUpChange = 'straightened' | 'glare' | 'lighting'
 
 /** Nearest-neighbour shrink to at most `maxEdge` on the long side (for detection, not for display). */
 export function downscale(pixels: Pixels, maxEdge: number): Pixels {
@@ -384,7 +385,7 @@ export function needsStraighten(quad: Quad): boolean {
 export function autoStraighten(pixels: Pixels, maxEdge: number): Pixels | null {
   const found = findCardEdges(downscale(pixels, EDGE_MAX))
   if (!found) return null
-  const quad = growQuad(found, SAFETY_MARGIN)
+  const quad = growQuad(found.quad, SAFETY_MARGIN)
   if (!needsStraighten(quad)) return null
   const size = outputSize(quad, pixels.width, pixels.height, maxEdge)
   return warpPerspective(pixels, quad, size.width, size.height)
@@ -555,7 +556,10 @@ function markWithFade(pixels: Pixels, blob: Blob, mask: Uint8Array): boolean {
   return true
 }
 
-/** Straightens (unless the photo already is) and fills clear glare spots; `changes` is empty when nothing applied. */
+/**
+ * Trims and straightens (unless the photo already is), fills clear glare spots and corrects the lighting;
+ * `changes` is empty when nothing applied.
+ */
 export function autoTouchUp(
   pixels: Pixels,
   { straighten, maxEdge }: { straighten: boolean; maxEdge: number },
@@ -571,6 +575,12 @@ export function autoTouchUp(
   if (glare) {
     out = fillGlare(out, glare)
     changes.push('glare')
+  }
+  // Last, and measured on the trimmed card, so the carpet round it doesn't count.
+  const lit = autoLight(out)
+  if (lit) {
+    out = lit
+    changes.push('lighting')
   }
   return { pixels: out, changes }
 }

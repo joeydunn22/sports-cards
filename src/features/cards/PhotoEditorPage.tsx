@@ -15,13 +15,20 @@ import {
   warpPerspective,
   type Quad,
 } from '../../lib/photoEdit'
+import { adjustLight, autoLight, type LightAdjust } from '../../lib/photoLight'
 import { drawPixels, finishPhoto, imagePixels, isFlatPhoto, PHOTO_MAX_EDGE, type Side } from '../../lib/photos'
 import type { Card } from '../../types/card'
 import { cardTitle } from './cardText'
 import { CornerEditor } from './CornerEditor'
+import { LightPanel } from './LightPanel'
 import { TouchUpCanvas } from './TouchUpCanvas'
 
-type Mode = 'straighten' | 'touchup'
+type Mode = 'straighten' | 'touchup' | 'light'
+const MODES: { mode: Mode; label: string }[] = [
+  { mode: 'straighten', label: 'Straighten' },
+  { mode: 'touchup', label: 'Touch up' },
+  { mode: 'light', label: 'Adjust' },
+]
 /** Each step keeps a full copy of the photo (about 7 MB), so undo stops after this many. */
 const UNDO_LIMIT = 8
 
@@ -77,6 +84,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
   const [mode, setMode] = useState<Mode>('straighten')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
   const edited = current.pixels !== original.pixels
   const backTo = `/cards/${card.id}`
 
@@ -92,6 +100,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
   function run(step: () => Step | void) {
     setBusy(true)
     setError(null)
+    setNote(null)
     setTimeout(() => {
       try {
         const next = step()
@@ -123,6 +132,18 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
 
   function fill(mask: Uint8Array) {
     run(() => ({ ...current, pixels: fillGlare(current.pixels, mask) }))
+  }
+
+  function autoFixLight() {
+    run(() => {
+      const lit = autoLight(current.pixels)
+      if (!lit) setNote('The light and colour already look even, so Auto left this photo as it is.')
+      else return { ...current, pixels: lit }
+    })
+  }
+
+  function light(adjust: LightAdjust) {
+    run(() => ({ ...current, pixels: adjustLight(current.pixels, adjust) }))
   }
 
   function undo() {
@@ -167,8 +188,8 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
         </button>
       </header>
 
-      <div className="grid grid-cols-2 gap-2 text-center text-sm font-medium" role="tablist">
-        {(['straighten', 'touchup'] as const).map((m) => (
+      <div className="grid grid-cols-3 gap-2 text-center text-sm font-medium" role="tablist">
+        {MODES.map(({ mode: m, label }) => (
           <button
             key={m}
             type="button"
@@ -177,7 +198,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
             onClick={() => setMode(m)}
             className={`min-h-11 rounded-full ${mode === m ? 'bg-sky-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}
           >
-            {m === 'straighten' ? 'Straighten' : 'Touch up'}
+            {label}
           </button>
         ))}
       </div>
@@ -215,6 +236,14 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
               {busy ? 'Working…' : 'Straighten'}
             </button>
           </div>
+        </>
+      ) : mode === 'light' ? (
+        <>
+          <p className="mt-3 text-sm text-slate-400">
+            Auto evens out dim, washed-out or yellowish light. Or set it yourself (sharpness helps a photo
+            softened by the toploader), then tap Apply.
+          </p>
+          <LightPanel pixels={current.pixels} busy={busy} note={note} onAuto={autoFixLight} onApply={light} />
         </>
       ) : (
         <>

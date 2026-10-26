@@ -322,7 +322,7 @@ describe('findCardCorners with dark artwork', () => {
 describe('glare with a wide fade', () => {
   it('fills the haze around the blown-out core too', () => {
     const photo = glareOnRed(150, 200, 12, 36)
-    const { pixels } = autoTouchUp(photo, { straighten: false, maxEdge: 1600 })
+    const pixels = fillGlare(photo, findGlare(photo)!)
     // 30 px out, the glare had lifted green from 30 to about 100; after the fill it is back near the card.
     const p = (200 * 300 + 180) * 4
     expect(photo.data[p + 1]).toBeGreaterThan(90)
@@ -338,7 +338,7 @@ describe('glare with a long, shallow fade', () => {
       const t = d < 10 ? 1 : d < 36 ? 1 - (0.15 * (d - 10)) / 26 : d < 50 ? (0.85 * (50 - d)) / 14 : 0
       return RED.map((v) => Math.round(v + (255 - v) * t)) as [number, number, number]
     })
-    const { pixels } = autoTouchUp(photo, { straighten: false, maxEdge: 1600 })
+    const pixels = fillGlare(photo, findGlare(photo)!)
     const p = (200 * 300 + 175) * 4 // 25 px out
     expect(photo.data[p + 1]).toBeGreaterThan(180)
     expect(pixels.data[p + 1]).toBeLessThan(80)

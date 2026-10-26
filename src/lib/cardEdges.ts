@@ -31,6 +31,14 @@ export const CARD_RATIO = 63.5 / 88.9
 const RATIO_TOLERANCE = 0.035
 /** The card must fill at least this share of the photo. */
 const MIN_SHARE = 0.1
+/** A rectangle at least this wide for its height is a toploader (0.75) rather than a card (0.714). */
+const TOPLOADER_RATIO = 0.728
+/** The card inside a toploader: card-shaped within this, with an edge along this share of every side… */
+const CARD_TOLERANCE = 0.02
+const CARD_COVERAGE = 0.85
+/** …and each side this far in from the toploader's (share of its width or height). */
+const MIN_INSET = 0.01
+const MAX_INSET = 0.12
 
 /**
  * Edge pixels for edges running up and down (`up`) and across (`across`), each widened by a pixel either side
@@ -40,17 +48,54 @@ type Edges = { up: Uint8Array; across: Uint8Array; width: number; height: number
 /** A straight line: `vertical` lines are x = a + b·(y − h/2), others y = a + b·(x − w/2), in pixels. */
 type Line = { vertical: boolean; a: number; b: number; score: number }
 
+/** What was found: the quad to crop to, and the toploader around it when the crop was tightened to the card. */
+export type CardOutline = { quad: Quad; toploader: Quad | null }
+
 /**
  * The card's corners (normalized, clockwise from top-left), or null. Of all the card-shaped rectangles with
  * an edge along every side, the largest: the toploader or the card itself, never a frame printed inside it.
+ * When that is a toploader, the card's own edges inside it are used instead, if they're found for sure.
  */
-export function findCardEdges(pixels: Pixels): Quad | null {
+export function findCardEdges(pixels: Pixels): CardOutline | null {
   const edges = edgeMap(pixels)
   const { width, height } = edges
-  const vertical = lineCandidates(edges, true)
-  const across = lineCandidates(edges, false)
-  let best: { quad: Point[]; area: number } | null = null
+  const lines = { vertical: lineCandidates(edges, true), across: lineCandidates(edges, false) }
+  const outer = largestRect(edges, lines, MIN_COVERAGE, (quad) => {
+    return polygonArea(quad) >= MIN_SHARE * width * height && Math.abs(shapeRatio(quad) - CARD_RATIO) <= RATIO_TOLERANCE
+  })
+  if (!outer) return null
+  const norm = (quad: Point[]) => quad.map((p) => ({ x: p.x / width, y: p.y / height })) as Quad
+  if (shapeRatio(outer) < TOPLOADER_RATIO) return { quad: norm(outer), toploader: null }
 
+  // A toploader is wider for its height than a card: look for the card just inside it, card-shaped exactly.
+  const [otl, otr, obr, obl] = outer
+  const outerW = (otr.x + obr.x - otl.x - obl.x) / 2
+  const outerH = (obl.y + obr.y - otl.y - otr.y) / 2
+  const card = largestRect(edges, lines, CARD_COVERAGE, ([tl, tr, br, bl]) => {
+    const insets = [
+      (tl.y + tr.y - otl.y - otr.y) / 2 / outerH,
+      (otr.x + obr.x - tr.x - br.x) / 2 / outerW,
+      (obl.y + obr.y - bl.y - br.y) / 2 / outerH,
+      (tl.x + bl.x - otl.x - obl.x) / 2 / outerW,
+    ]
+    return (
+      insets.every((i) => i >= MIN_INSET && i <= MAX_INSET) &&
+      Math.abs(shapeRatio([tl, tr, br, bl]) - CARD_RATIO) <= CARD_TOLERANCE
+    )
+  })
+  return card ? { quad: norm(card), toploader: norm(outer) } : { quad: norm(outer), toploader: null }
+}
+
+/** The largest rectangle from the candidate lines that `fits` and has an edge along `coverage` of every side. */
+function largestRect(
+  edges: Edges,
+  { vertical, across }: { vertical: Line[]; across: Line[] },
+  coverage: number,
+  fits: (quad: Point[]) => boolean,
+): Point[] | null {
+  const { width, height } = edges
+  // Shape checks are cheap and edge checks aren't: gather what fits, then check edges from the largest down.
+  const shapes: { quad: Point[]; area: number }[] = []
   for (const left of vertical) {
     for (const right of vertical) {
       if (left.a >= right.a) continue
@@ -58,22 +103,23 @@ export function findCardEdges(pixels: Pixels): Quad | null {
         for (const bottom of across) {
           if (top.a >= bottom.a) continue
           const quad = [meet(left, top, edges), meet(right, top, edges), meet(right, bottom, edges), meet(left, bottom, edges)]
-          if (!quad.every((p) => p.x >= -1 && p.y >= -1 && p.x <= width && p.y <= height)) continue
-          const area = polygonArea(quad) / (width * height)
-          if (area < MIN_SHARE || (best && area <= best.area)) continue
-          if (Math.abs(shapeRatio(quad) - CARD_RATIO) > RATIO_TOLERANCE) continue
-          const sides: [Point, Point, boolean][] = [
-            [quad[0], quad[1], false],
-            [quad[1], quad[2], true],
-            [quad[3], quad[2], false],
-            [quad[0], quad[3], true],
-          ]
-          if (sides.every(([p, q, v]) => sideCoverage(edges, p, q, v) >= MIN_COVERAGE)) best = { quad, area }
+          if (!quad.every((p) => p.x >= -1 && p.y >= -1 && p.x <= width && p.y <= height) || !fits(quad)) continue
+          shapes.push({ quad, area: polygonArea(quad) })
         }
       }
     }
   }
-  return best && (best.quad.map((p) => ({ x: p.x / width, y: p.y / height })) as Quad)
+  shapes.sort((p, q) => q.area - p.area)
+  for (const { quad } of shapes) {
+    const sides: [Point, Point, boolean][] = [
+      [quad[0], quad[1], false],
+      [quad[1], quad[2], true],
+      [quad[3], quad[2], false],
+      [quad[0], quad[3], true],
+    ]
+    if (sides.every(([p, q, v]) => sideCoverage(edges, p, q, v) >= coverage)) return quad
+  }
+  return null
 }
 
 /**

@@ -9,7 +9,11 @@ import { BATCH_SIZE, touchUpQueue, useTouchUpBatch, type CardResult } from './us
 
 type Pick = 'before' | 'after'
 
-const CHANGE_LABELS: Record<TouchUpChange, string> = { straightened: 'Trimmed & straightened', glare: 'Glare filled' }
+const CHANGE_LABELS: Record<TouchUpChange, string> = {
+  straightened: 'Trimmed & straightened',
+  glare: 'Glare filled',
+  lighting: 'Lighting fixed',
+}
 
 /** Automatic touch-up for the whole collection: a batch at a time, every change reviewed before it's kept. */
 export function TouchUpPage() {
