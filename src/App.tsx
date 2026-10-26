@@ -8,6 +8,7 @@ import { EditCardPage } from './features/cards/EditCardPage'
 import { NewCardPage } from './features/cards/NewCardPage'
 import { PhotoEditorPage } from './features/cards/PhotoEditorPage'
 import { MorePage } from './features/more/MorePage'
+import { TouchUpPage } from './features/photos/TouchUpPage'
 import { CapturePage } from './features/scan/CapturePage'
 import { ReviewScanPage } from './features/scan/ReviewScanPage'
 import { ScanPage } from './features/scan/ScanPage'
@@ -34,6 +35,7 @@ export default function App() {
                 <Route path="/scan/new" element={<CapturePage />} />
                 <Route path="/scan/:id" element={<ReviewScanPage />} />
                 <Route path="/more" element={<MorePage />} />
+                <Route path="/photos/touch-up" element={<TouchUpPage />} />
                 <Route path="/sets" element={<SetsPage />} />
                 <Route path="/sets/:year/:set" element={<SetDetailPage />} />
                 <Route path="/import-export" element={<Navigate to="/more" replace />} />

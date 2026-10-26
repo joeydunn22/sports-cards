@@ -2,12 +2,18 @@ import { describe, expect, it } from 'vitest'
 import type { Pixels } from './cardDetect'
 import {
   applyHomography,
+  autoStraighten,
+  autoTouchUp,
+  CAPTURE_CUT_SHARE,
+  downscale,
   fillGlare,
+  findGlare,
   FULL_FRAME,
   findCardCorners,
   homography,
   inpaint,
   outputSize,
+  plausibleCard,
   rotateQuad,
   rotateQuarter,
   warpPerspective,
@@ -170,5 +176,174 @@ describe('inpaint', () => {
     const out = inpaint(img, mask)
     expect(gray(out, 0, 0)).toBe(0)
     expect(gray(out, 9, 9)).toBe(99)
+  })
+})
+
+/** Colour photo: each pixel's [r, g, b] comes from `colour(x, y)`. */
+function rgb(width: number, height: number, colour: (x: number, y: number) => [number, number, number]): Pixels {
+  const data = new Uint8ClampedArray(width * height * 4)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const p = (y * width + x) * 4
+      ;[data[p], data[p + 1], data[p + 2]] = colour(x, y)
+      data[p + 3] = 255
+    }
+  }
+  return { width, height, data }
+}
+
+const RED: [number, number, number] = [180, 30, 30]
+const DARK: [number, number, number] = [25, 25, 30]
+
+/** Red card with a soft glare spot: blown out within `core`, fading back to red by `core + fade`. */
+function glareOnRed(cx: number, cy: number, core = 15, fade = 10) {
+  return rgb(300, 400, (x, y) => {
+    const d = Math.hypot(x - cx, y - cy)
+    const t = d < core ? 1 : d < core + fade ? (core + fade - d) / fade : 0
+    return RED.map((v) => Math.round(v + (255 - v) * t)) as [number, number, number]
+  })
+}
+
+describe('downscale', () => {
+  it('shrinks to the long edge and keeps the shape', () => {
+    const small = downscale(image(800, 1100, () => 50), 400)
+    expect([small.width, small.height]).toEqual([291, 400])
+    expect(downscale(image(100, 100, () => 50), 400).width).toBe(100)
+  })
+})
+
+describe('plausibleCard', () => {
+  it('accepts a card-shaped quad that fills most of the photo', () => {
+    expect(plausibleCard([{ x: 0.05, y: 0.04 }, { x: 0.95, y: 0.06 }, { x: 0.94, y: 0.96 }, { x: 0.06, y: 0.95 }], 700, 1000)).toBe(true)
+  })
+
+  it('refuses a square, a small region and a twisted quad', () => {
+    expect(plausibleCard([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }], 1000, 1000)).toBe(false)
+    expect(plausibleCard([{ x: 0.3, y: 0.3 }, { x: 0.6, y: 0.3 }, { x: 0.6, y: 0.7 }, { x: 0.3, y: 0.7 }], 700, 1000)).toBe(false)
+    expect(plausibleCard([{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 0 }, { x: 0, y: 1 }], 700, 1000)).toBe(false)
+  })
+})
+
+describe('autoStraighten', () => {
+  it('flattens a tilted card cut out with a margin', () => {
+    const corners: Point[] = [
+      { x: 20, y: 10 },
+      { x: 185, y: 25 },
+      { x: 175, y: 250 },
+      { x: 10, y: 235 },
+    ]
+    const photo = image(200, 260, (x, y) => (inside(corners, x + 0.5, y + 0.5) ? 220 : 20))
+    const flat = autoStraighten(photo, 1600)!
+    expect(flat).not.toBeNull()
+    for (let y = 3; y < flat.height - 3; y += 7) {
+      for (let x = 3; x < flat.width - 3; x += 7) expect(gray(flat, x, y)).toBeGreaterThan(200)
+    }
+  })
+
+  it('leaves a photo that is already straight and tight alone', () => {
+    const photo = image(200, 280, (x, y) => (x >= 2 && x < 198 && y >= 2 && y < 278 ? 220 : 20))
+    expect(autoStraighten(photo, 1600)).toBeNull()
+  })
+
+  it('leaves a photo with no clear card alone', () => {
+    expect(autoStraighten(image(200, 280, () => 128), 1600)).toBeNull()
+  })
+})
+
+describe('findGlare', () => {
+  it('finds a soft glare spot, and autoTouchUp fills it', () => {
+    const photo = glareOnRed(150, 180)
+    expect(findGlare(photo)?.[180 * 300 + 150]).toBe(1)
+    const { pixels, changes } = autoTouchUp(photo, { straighten: false, maxEdge: 1600 })
+    expect(changes).toEqual(['glare'])
+    const p = (180 * 300 + 150) * 4
+    expect(pixels.data[p + 1]).toBeLessThan(60) // green back near the red card's 30, not white
+  })
+
+  it('leaves thin white letters alone', () => {
+    const letters = rgb(300, 400, (x, y) => (y >= 100 && y < 140 && x >= 60 && x < 240 && x % 12 < 3 ? [255, 255, 255] : DARK))
+    expect(findGlare(letters)).toBeNull()
+  })
+
+  it('leaves a hard-edged white logo alone', () => {
+    const logo = rgb(300, 400, (x, y) => (x >= 130 && x < 160 && y >= 180 && y < 210 ? [255, 255, 255] : DARK))
+    expect(findGlare(logo)).toBeNull()
+  })
+
+  it('gives up on an overexposed or white card', () => {
+    expect(findGlare(rgb(300, 400, () => [252, 252, 252]))).toBeNull()
+  })
+
+  it('leaves a spot on the edge (the card border) alone', () => {
+    expect(findGlare(glareOnRed(3, 180))).toBeNull()
+  })
+
+  it('reports no changes when there is nothing to do', () => {
+    const plain = rgb(300, 400, () => RED)
+    expect(autoTouchUp(plain, { straighten: true, maxEdge: 1600 }).changes).toEqual([])
+  })
+})
+
+describe('auto touch-up on real-world layouts', () => {
+  it('finds glare on a card with a bright white border', () => {
+    // White border (blown out too) around red artwork, with a soft glare spot on the artwork.
+    const spot = glareOnRed(150, 180)
+    const card = rgb(300, 400, (x, y) => {
+      if (x < 20 || y < 20 || x >= 280 || y >= 380) return [250, 250, 250]
+      const p = (y * 300 + x) * 4
+      return [spot.data[p], spot.data[p + 1], spot.data[p + 2]]
+    })
+    expect(findGlare(card)?.[180 * 300 + 150]).toBe(1)
+  })
+
+  it('straightens a steeply tilted card in a wide capture cut, which a saved photo would not trust', () => {
+    // A 9° card, cut out with generous margins: the card is only about 48% of the cut.
+    const angle = (9 * Math.PI) / 180
+    const turn = (x: number, y: number): Point => ({
+      x: 380 + x * Math.cos(angle) - y * Math.sin(angle),
+      y: 480 + x * Math.sin(angle) + y * Math.cos(angle),
+    })
+    const corners = [turn(-250, -350), turn(250, -350), turn(250, 350), turn(-250, 350)]
+    const cut = image(760, 960, (x, y) => (inside(corners, x + 0.5, y + 0.5) ? 220 : 20))
+    expect(autoStraighten(cut, 1600)).toBeNull()
+    const flat = autoStraighten(cut, 1600, CAPTURE_CUT_SHARE)!
+    expect(flat.width / flat.height).toBeCloseTo(500 / 700, 1)
+  })
+})
+
+describe('findCardCorners with dark artwork', () => {
+  it('finds the card by its light border when the artwork is as dark as the background', () => {
+    // Light border ring, artwork nearly as dark as the table: only the ring stands out.
+    const frame = (x: number, y: number) => x >= 30 && x < 270 && y >= 25 && y < 365
+    const art = (x: number, y: number) => x >= 45 && x < 255 && y >= 40 && y < 350
+    const corners = findCardCorners(image(300, 390, (x, y) => (art(x, y) ? 35 : frame(x, y) ? 235 : 20)))
+    expect(corners[0].x * 300).toBeCloseTo(30, -1)
+    expect(corners[2].y * 390).toBeCloseTo(365, -1)
+  })
+})
+
+describe('glare with a wide fade', () => {
+  it('fills the haze around the blown-out core too', () => {
+    const photo = glareOnRed(150, 200, 12, 36)
+    const { pixels } = autoTouchUp(photo, { straighten: false, maxEdge: 1600 })
+    // 30 px out, the glare had lifted green from 30 to about 100; after the fill it is back near the card.
+    const p = (200 * 300 + 180) * 4
+    expect(photo.data[p + 1]).toBeGreaterThan(90)
+    expect(pixels.data[p + 1]).toBeLessThan(55)
+  })
+})
+
+describe('glare with a long, shallow fade', () => {
+  it('follows the haze until it is nearly gone', () => {
+    // Blown out within 10 px, a nearly flat bright plateau (under 1 level per pixel) to 36 px, then down to the card by 50 px.
+    const photo = rgb(300, 400, (x, y) => {
+      const d = Math.hypot(x - 150, y - 200)
+      const t = d < 10 ? 1 : d < 36 ? 1 - (0.15 * (d - 10)) / 26 : d < 50 ? (0.85 * (50 - d)) / 14 : 0
+      return RED.map((v) => Math.round(v + (255 - v) * t)) as [number, number, number]
+    })
+    const { pixels } = autoTouchUp(photo, { straighten: false, maxEdge: 1600 })
+    const p = (200 * 300 + 175) * 4 // 25 px out
+    expect(photo.data[p + 1]).toBeGreaterThan(180)
+    expect(pixels.data[p + 1]).toBeLessThan(80)
   })
 })

@@ -96,36 +96,71 @@ export function useAddQuantity() {
   })
 }
 
+export type PhotoReplacement = { card: Card; side: Side; crop: CardCrop }
+
 /**
- * Replaces one side's photo with an edited copy; the old photo and thumbnail are deleted (only the latest
- * version is kept). The new file gets a fresh path so cached signed URLs can't show the old image.
+ * Replaces one side's photo with an edited copy and marks the card's photos checked; the old photo and
+ * thumbnail are deleted (only the latest version is kept). The new file gets a fresh path so cached
+ * signed URLs can't show the old image.
  */
+async function replaceCardPhoto({ card, side, crop }: PhotoReplacement): Promise<Card> {
+  const userId = await currentUserId()
+  const path = photoPath(userId, crypto.randomUUID(), side, crop.photo.ext, crop.flat)
+  await uploadPhoto(path, crop.photo)
+  await uploadPhoto(thumbPath(path), crop.thumb)
+  const photos_checked_at = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('cards')
+    .update(side === 'front' ? { front_image_path: path, photos_checked_at } : { back_image_path: path, photos_checked_at })
+    .eq('id', card.id)
+    .select()
+    .single()
+  if (error) {
+    await removePhotos([path]).catch(() => {})
+    throw error
+  }
+  // The card already points at the new photo; a leftover old file is harmless.
+  await removePhotos([side === 'front' ? card.front_image_path : card.back_image_path]).catch(() => {})
+  return data
+}
+
+const replaceInCache = (old: Card[] | undefined, updated: Card[]) => {
+  const byId = new Map(updated.map((c) => [c.id, c]))
+  return old?.map((c) => byId.get(c.id) ?? c)
+}
+
+/** The photo editor's save. */
 export function useReplaceCardPhoto() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ card, side, crop }: { card: Card; side: Side; crop: CardCrop }) => {
-      if (IS_DEMO) return card // no storage in demo mode
-      const userId = await currentUserId()
-      const path = photoPath(userId, crypto.randomUUID(), side, crop.photo.ext)
-      await uploadPhoto(path, crop.photo)
-      await uploadPhoto(thumbPath(path), crop.thumb)
-      const { data, error } = await supabase
-        .from('cards')
-        .update(side === 'front' ? { front_image_path: path } : { back_image_path: path })
-        .eq('id', card.id)
-        .select()
-        .single()
-      if (error) {
-        await removePhotos([path]).catch(() => {})
-        throw error
+    mutationFn: async (replacement: PhotoReplacement) =>
+      IS_DEMO ? replacement.card : replaceCardPhoto(replacement), // no storage in demo mode
+    onSuccess: (card) => queryClient.setQueryData<Card[]>(CARDS_KEY, (old) => replaceInCache(old, [card])),
+  })
+}
+
+/**
+ * Saves one batch of the automatic touch-up: the "after" photos that were kept, then marks every card in
+ * the batch checked (also those kept as they were), so the next batch moves on.
+ */
+export function useSaveTouchUps() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ replacements, checkedIds }: { replacements: PhotoReplacement[]; checkedIds: string[] }) => {
+      const photos_checked_at = new Date().toISOString()
+      if (IS_DEMO) {
+        const cards = queryClient.getQueryData<Card[]>(CARDS_KEY) ?? []
+        return cards.filter((c) => checkedIds.includes(c.id)).map((c) => ({ ...c, photos_checked_at }))
       }
-      // The card already points at the new photo; a leftover old file is harmless.
-      await removePhotos([side === 'front' ? card.front_image_path : card.back_image_path]).catch(() => {})
+      for (const replacement of replacements) await replaceCardPhoto(replacement)
+      if (checkedIds.length === 0) return []
+      const { data, error } = await supabase.from('cards').update({ photos_checked_at }).in('id', checkedIds).select()
+      if (error) throw error
       return data
     },
-    onSuccess: (card) => {
-      queryClient.setQueryData<Card[]>(CARDS_KEY, (old) => old?.map((c) => (c.id === card.id ? card : c)))
-    },
+    onSuccess: (cards) => queryClient.setQueryData<Card[]>(CARDS_KEY, (old) => replaceInCache(old, cards)),
+    // A save that stopped partway has still replaced some photos.
+    onError: () => queryClient.invalidateQueries({ queryKey: CARDS_KEY }),
   })
 }
 

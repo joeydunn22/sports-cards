@@ -111,6 +111,11 @@ function sample({ data, width, height }: Pixels, fx: number, fy: number, out: Ui
  * extreme points along the diagonals. The user nudges them; inside a toploader it may find the toploader.
  */
 export function findCardCorners(pixels: Pixels): Quad {
+  return detectCardCorners(pixels) ?? insetQuad(FALLBACK_INSET)
+}
+
+/** The card's corners, or null when no card-sized region stands out from the background. */
+export function detectCardCorners(pixels: Pixels): Quad | null {
   const { width, height } = pixels
   const gray = toGray(pixels)
   const threshold = otsuThreshold(gray)
@@ -121,8 +126,8 @@ export function findCardCorners(pixels: Pixels): Quad {
   // Close gaps from dark artwork. A square dilation moves each diagonal extreme by exactly (±r, ±r),
   // so that is taken back off the corners below.
   const r = Math.max(1, Math.round(Math.min(width, height) * 0.01))
-  const region = largestRegion(dilate(mask, width, height, r), width, height)
-  if (!region || region.count < MIN_CARD_SHARE * width * height) return insetQuad(FALLBACK_INSET)
+  const region = outerRegion(dilate(mask, width, height, r), width, height)
+  if (!region || region.area < MIN_CARD_SHARE * width * height) return null
 
   const point = (x: number, y: number): Point => ({
     x: Math.min(Math.max((x + 0.5) / width, 0), 1),
@@ -141,16 +146,19 @@ export function insetQuad(inset: number): Quad {
   ]
 }
 
-type Region = { count: number; tl: Point; tr: Point; br: Point; bl: Point }
+type Region = { area: number; tl: Point; tr: Point; br: Point; bl: Point }
 
-/** The biggest 4-connected region, with its extreme pixels along x+y and x−y. */
-function largestRegion(mask: Uint8Array, width: number, height: number): Region | null {
+/**
+ * The 4-connected region whose corners (extreme pixels along x+y and x−y) enclose the most area. Judged by
+ * enclosed area, not pixel count, so a card whose dark artwork reads as background still counts by its border.
+ */
+function outerRegion(mask: Uint8Array, width: number, height: number): Region | null {
   const seen = new Uint8Array(mask.length)
   const stack: number[] = []
   let best: Region | null = null
   for (let start = 0; start < mask.length; start++) {
     if (!mask[start] || seen[start]) continue
-    const region: Region = { count: 0, tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, br: { x: 0, y: 0 }, bl: { x: 0, y: 0 } }
+    const region: Region = { area: 0, tl: { x: 0, y: 0 }, tr: { x: 0, y: 0 }, br: { x: 0, y: 0 }, bl: { x: 0, y: 0 } }
     let minSum = Infinity
     let maxSum = -Infinity
     let minDiff = Infinity
@@ -161,7 +169,6 @@ function largestRegion(mask: Uint8Array, width: number, height: number): Region 
       const i = stack.pop()!
       const x = i % width
       const y = (i - x) / width
-      region.count++
       if (x + y < minSum) [minSum, region.tl] = [x + y, { x, y }]
       if (x + y > maxSum) [maxSum, region.br] = [x + y, { x, y }]
       if (x - y > maxDiff) [maxDiff, region.tr] = [x - y, { x, y }]
@@ -174,9 +181,15 @@ function largestRegion(mask: Uint8Array, width: number, height: number): Region 
         }
       }
     }
-    if (!best || region.count > best.count) best = region
+    region.area = quadArea([region.tl, region.tr, region.br, region.bl])
+    if (!best || region.area > best.area) best = region
   }
   return best
+}
+
+/** Area enclosed by four points in order (shoelace formula). */
+function quadArea(pts: Point[]): number {
+  return Math.abs(pts.reduce((sum, a, i) => sum + a.x * pts[(i + 1) % 4].y - pts[(i + 1) % 4].x * a.y, 0)) / 2
 }
 
 /** Turns the photo a quarter turn clockwise. */
@@ -298,4 +311,250 @@ function maskBounds(mask: Uint8Array, width: number, height: number) {
     }
   }
   return x1 < 0 ? null : { x0, y0, x1, y1 }
+}
+
+// Automatic touch-up: the same tools as the editor, applied only when they are clearly safe. Every result
+// still goes through the before/after review on the touch-up page (except straightening at capture).
+
+/** Corner finding works on a small copy; more pixels don't help find four corners. */
+export const DETECT_MAX_EDGE = 400
+/**
+ * Share of the photo a found card must cover. A saved crop is mostly card, so finding much less usually
+ * means the artwork was found; a capture cut has generous margins on purpose and gets a lower bar.
+ */
+export const SAVED_PHOTO_SHARE = 0.5
+export const CAPTURE_CUT_SHARE = 0.35
+/** Short side / long side of a plausible card: cards are 0.71, toploaders 0.75. */
+const MIN_CARD_RATIO = 0.6
+const MAX_CARD_RATIO = 0.85
+/** Corners closer than this to the photo's corners mean it is already straight and tight. */
+const STRAIGHT_ENOUGH = 0.02
+
+/** Glare is blown out: all channels near white and nearly gray. */
+const CLIPPED_LEVEL = 245
+const CLIPPED_TINT = 20
+/** More blown-out spots than this in total means an overexposed photo, not glare; it is left alone. */
+const MAX_GLARE_TOTAL = 0.08
+/** Size of one glare spot, as a share of the photo. */
+const MIN_GLARE_SHARE = 0.0002
+const MAX_GLARE_SHARE = 0.03
+/** A glare spot is compact: its short side (share of the long edge) and how much of its box it fills. */
+const MIN_GLARE_SIDE = 0.008
+const MIN_GLARE_FILL = 0.35
+/** Spots this close to the edge (share of the long edge) are left alone: usually the card's white border. */
+const EDGE_BAND = 0.015
+/** Glare fades out softly; white print has a hard edge. Minimum brightness of the ring just outside. */
+const SOFT_EDGE_LEVEL = 170
+/** The fade around a glare spot ends where less than this share of its brightening is left. */
+const FADE_LEFT = 0.1
+/** How far out the fade is followed at most, as a share of the photo's long edge (keeps it quick). */
+const MAX_FADE = 0.08
+
+export type TouchUpChange = 'straightened' | 'glare'
+
+/** Nearest-neighbour shrink to at most `maxEdge` on the long side (for detection, not for display). */
+export function downscale(pixels: Pixels, maxEdge: number): Pixels {
+  const scale = Math.min(1, maxEdge / Math.max(pixels.width, pixels.height))
+  if (scale === 1) return pixels
+  const width = Math.max(1, Math.round(pixels.width * scale))
+  const height = Math.max(1, Math.round(pixels.height * scale))
+  const data = new Uint8ClampedArray(width * height * 4)
+  for (let y = 0; y < height; y++) {
+    const sy = Math.min(pixels.height - 1, Math.floor((y + 0.5) / scale))
+    for (let x = 0; x < width; x++) {
+      const sx = Math.min(pixels.width - 1, Math.floor((x + 0.5) / scale))
+      const from = (sy * pixels.width + sx) * 4
+      const to = (y * width + x) * 4
+      for (let c = 0; c < 4; c++) data[to + c] = pixels.data[from + c]
+    }
+  }
+  return { width, height, data }
+}
+
+/** Is this quad a believable card: convex, covering at least `minShare` of the photo, and card-shaped? */
+export function plausibleCard(quad: Quad, width: number, height: number, minShare = SAVED_PHOTO_SHARE): boolean {
+  const pts = quad.map((p) => ({ x: p.x * width, y: p.y * height }))
+  const turns = pts.map((a, i) => {
+    const b = pts[(i + 1) % 4]
+    const c = pts[(i + 2) % 4]
+    return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
+  })
+  if (!turns.every((t) => t > 0) && !turns.every((t) => t < 0)) return false
+  if (quadArea(pts) < minShare * width * height) return false
+  const size = outputSize(quad, width, height, Infinity)
+  const ratio = Math.min(size.width, size.height) / Math.max(size.width, size.height)
+  return ratio >= MIN_CARD_RATIO && ratio <= MAX_CARD_RATIO
+}
+
+/** Does straightening to this quad change anything worth keeping? */
+export function needsStraighten(quad: Quad): boolean {
+  return quad.some((p, i) => Math.hypot(p.x - FULL_FRAME[i].x, p.y - FULL_FRAME[i].y) >= STRAIGHT_ENOUGH)
+}
+
+/** The photo flattened to the card, or null when no card is found for sure or it is already straight. */
+export function autoStraighten(pixels: Pixels, maxEdge: number, minShare = SAVED_PHOTO_SHARE): Pixels | null {
+  const quad = detectCardCorners(downscale(pixels, DETECT_MAX_EDGE))
+  if (!quad || !plausibleCard(quad, pixels.width, pixels.height, minShare) || !needsStraighten(quad)) return null
+  const size = outputSize(quad, pixels.width, pixels.height, maxEdge)
+  return warpPerspective(pixels, quad, size.width, size.height)
+}
+
+/** A mask of the clear glare spots in a photo (for `fillGlare`), or null when there are none. Conservative on purpose. */
+export function findGlare(pixels: Pixels): Uint8Array | null {
+  const { width, height, data } = pixels
+  const total = width * height
+  const clipped = new Uint8Array(total)
+  let count = 0
+  for (let i = 0, p = 0; i < total; i++, p += 4) {
+    const lo = Math.min(data[p], data[p + 1], data[p + 2])
+    const hi = Math.max(data[p], data[p + 1], data[p + 2])
+    if (lo >= CLIPPED_LEVEL && hi - lo <= CLIPPED_TINT) {
+      clipped[i] = 1
+      count++
+    }
+  }
+  if (count === 0) return null
+
+  // Judged spot by spot: a bright white border is one big region touching the edge, and is skipped.
+  const long = Math.max(width, height)
+  const band = Math.round(long * EDGE_BAND)
+  const mask = new Uint8Array(total)
+  let cores = 0
+  for (const blob of blobs(clipped, width, height)) {
+    const { pixels: members, x0, y0, x1, y1 } = blob
+    const w = x1 - x0 + 1
+    const h = y1 - y0 + 1
+    if (members.length < MIN_GLARE_SHARE * total || members.length > MAX_GLARE_SHARE * total) continue
+    if (x0 < band || y0 < band || x1 >= width - band || y1 >= height - band) continue
+    if (Math.min(w, h) < long * MIN_GLARE_SIDE || members.length / (w * h) < MIN_GLARE_FILL) continue
+    if (ringBrightness(pixels, blob) < SOFT_EDGE_LEVEL) continue
+    markWithFade(pixels, blob, mask)
+    cores += members.length
+  }
+  return cores && cores <= MAX_GLARE_TOTAL * total ? mask : null
+}
+
+type Blob = { pixels: number[]; x0: number; y0: number; x1: number; y1: number }
+
+/** 4-connected regions of a mask, with their pixels and bounding boxes. */
+function blobs(mask: Uint8Array, width: number, height: number): Blob[] {
+  const seen = new Uint8Array(mask.length)
+  const out: Blob[] = []
+  const stack: number[] = []
+  for (let start = 0; start < mask.length; start++) {
+    if (!mask[start] || seen[start]) continue
+    const blob: Blob = { pixels: [], x0: width, y0: height, x1: 0, y1: 0 }
+    seen[start] = 1
+    stack.push(start)
+    while (stack.length) {
+      const i = stack.pop()!
+      const x = i % width
+      const y = (i - x) / width
+      blob.pixels.push(i)
+      if (x < blob.x0) blob.x0 = x
+      if (x > blob.x1) blob.x1 = x
+      if (y < blob.y0) blob.y0 = y
+      if (y > blob.y1) blob.y1 = y
+      const neighbors = [x > 0 ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y > 0 ? i - width : -1, y < height - 1 ? i + width : -1]
+      for (const n of neighbors) {
+        if (n >= 0 && mask[n] && !seen[n]) {
+          seen[n] = 1
+          stack.push(n)
+        }
+      }
+    }
+    out.push(blob)
+  }
+  return out
+}
+
+/** Average darkest-channel level of the pixels 2–3 steps outside a blob. */
+function ringBrightness({ width, height, data }: Pixels, blob: Blob): number {
+  const pad = 3
+  const lx = Math.max(0, blob.x0 - pad)
+  const ly = Math.max(0, blob.y0 - pad)
+  const lw = Math.min(width - 1, blob.x1 + pad) - lx + 1
+  const lh = Math.min(height - 1, blob.y1 + pad) - ly + 1
+  const local = new Uint8Array(lw * lh)
+  for (const i of blob.pixels) local[(Math.floor(i / width) - ly) * lw + ((i % width) - lx)] = 1
+  const near = dilate(local, lw, lh, 1)
+  const far = dilate(local, lw, lh, pad)
+  let sum = 0
+  let n = 0
+  for (let j = 0; j < local.length; j++) {
+    if (!far[j] || near[j]) continue
+    const p = ((ly + Math.floor(j / lw)) * width + lx + (j % lw)) * 4
+    sum += Math.min(data[p], data[p + 1], data[p + 2])
+    n++
+  }
+  return n ? sum / n : 0
+}
+
+/**
+ * Marks a glare spot plus the soft fade around it. Measures the brightness of each ring outward from the
+ * blown-out core (up to twice the spot's size), takes the darkest ring as the card underneath, and marks
+ * out to where 90% of the glare's brightening is gone.
+ */
+function markWithFade(pixels: Pixels, blob: Blob, mask: Uint8Array) {
+  const { width, height, data } = pixels
+  const size = Math.max(blob.x1 - blob.x0, blob.y1 - blob.y0) + 1
+  const reach = Math.min(2 * size, Math.round(Math.max(width, height) * MAX_FADE))
+  const lx = Math.max(0, blob.x0 - reach)
+  const ly = Math.max(0, blob.y0 - reach)
+  const lw = Math.min(width - 1, blob.x1 + reach) - lx + 1
+  const lh = Math.min(height - 1, blob.y1 + reach) - ly + 1
+  const toGlobal = (j: number) => (ly + Math.floor(j / lw)) * width + lx + (j % lw)
+  const level = (j: number) => {
+    const p = toGlobal(j) * 4
+    return Math.min(data[p], data[p + 1], data[p + 2])
+  }
+
+  const core = new Uint8Array(lw * lh)
+  for (const i of blob.pixels) core[(Math.floor(i / width) - ly) * lw + ((i % width) - lx)] = 1
+  const ringMeans: number[] = []
+  let inside: Uint8Array = core
+  for (let step = 0; step < reach; step++) {
+    const grown = dilate(inside, lw, lh, 1)
+    let sum = 0
+    let n = 0
+    for (let j = 0; j < grown.length; j++) {
+      if (grown[j] && !inside[j]) {
+        sum += level(j)
+        n++
+      }
+    }
+    if (n === 0) break
+    ringMeans.push(sum / n)
+    inside = grown
+  }
+  // Still clearly getting darker over the last few rings means the fade goes on past the reach: take all of
+  // it. (Rings are squares, so their average keeps easing down a little even after the fade has ended.)
+  const last = ringMeans.length - 1
+  const base = Math.min(...ringMeans)
+  const stillFading = last >= 3 && ringMeans[last - 3] - ringMeans[last] > FADE_LEFT * 0.5 * (CLIPPED_LEVEL - base)
+  const faded = base + FADE_LEFT * (CLIPPED_LEVEL - base)
+  const rings = stillFading ? -1 : ringMeans.findIndex((m) => m <= faded)
+  const area = dilate(core, lw, lh, rings === -1 ? ringMeans.length : rings)
+
+  for (let j = 0; j < area.length; j++) if (area[j]) mask[toGlobal(j)] = 1
+}
+
+/** Straightens (unless the photo already is) and fills clear glare spots; `changes` is empty when nothing applied. */
+export function autoTouchUp(
+  pixels: Pixels,
+  { straighten, maxEdge }: { straighten: boolean; maxEdge: number },
+): { pixels: Pixels; changes: TouchUpChange[] } {
+  const changes: TouchUpChange[] = []
+  let out = pixels
+  const flat = straighten ? autoStraighten(out, maxEdge) : null
+  if (flat) {
+    out = flat
+    changes.push('straightened')
+  }
+  const glare = findGlare(out)
+  if (glare) {
+    out = fillGlare(out, glare)
+    changes.push('glare')
+  }
+  return { pixels: out, changes }
 }

@@ -36,6 +36,7 @@ const base: Omit<Card, 'id' | 'player' | 'year' | 'set_name' | 'card_number'> = 
   sold_date: null,
   front_image_path: null,
   back_image_path: null,
+  photos_checked_at: null,
   created_at: '2026-10-01T00:00:00Z',
   updated_at: '2026-10-01T00:00:00Z',
 }

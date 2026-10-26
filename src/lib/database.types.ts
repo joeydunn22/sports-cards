@@ -181,6 +181,7 @@ export type Database = {
           is_relic: boolean
           is_rookie: boolean
           parallel: string | null
+          photos_checked_at: string | null
           player: string
           print_run: number | null
           purchase_date: string | null
@@ -213,6 +214,7 @@ export type Database = {
           is_relic?: boolean
           is_rookie?: boolean
           parallel?: string | null
+          photos_checked_at?: string | null
           player: string
           print_run?: number | null
           purchase_date?: string | null
@@ -245,6 +247,7 @@ export type Database = {
           is_relic?: boolean
           is_rookie?: boolean
           parallel?: string | null
+          photos_checked_at?: string | null
           player?: string
           print_run?: number | null
           purchase_date?: string | null

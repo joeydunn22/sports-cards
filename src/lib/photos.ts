@@ -1,9 +1,11 @@
 import { detectCards, padBox, type Box, type Pixels } from './cardDetect'
+import { autoStraighten, CAPTURE_CUT_SHARE } from './photoEdit'
 
 /**
  * Photo handling in the browser: decoding camera photos, finding cards in them, and cutting each card
  * out at full resolution. Storage layout: `{user_id}/{photo_id}-{front|back}.{webp|jpg}` in the
- * private `card-photos` bucket, with a `-thumb` copy next to each photo.
+ * private `card-photos` bucket, with a `-thumb` copy next to each photo. A `-flat` before the extension
+ * marks a photo already straightened to the card, so the automatic touch-up doesn't straighten it again.
  */
 
 export const PHOTO_BUCKET = 'card-photos'
@@ -15,11 +17,18 @@ const THUMB_MAX_EDGE = 320
 const DETECT_MAX_EDGE = 800
 /** Extra margin around each detected card so edges aren't clipped. */
 const CROP_MARGIN = 0.04
+/** Wider cut for straightening, so the corners are surely inside; straightening trims it off again. */
+const STRAIGHTEN_MARGIN = 0.08
 
 export type Side = 'front' | 'back'
 
-export function photoPath(userId: string, photoId: string, side: Side, ext: 'webp' | 'jpg'): string {
-  return `${userId}/${photoId}-${side}.${ext}`
+export function photoPath(userId: string, photoId: string, side: Side, ext: 'webp' | 'jpg', flat = false): string {
+  return `${userId}/${photoId}-${side}${flat ? '-flat' : ''}.${ext}`
+}
+
+/** Was this photo saved already straightened to the card? */
+export function isFlatPhoto(path: string): boolean {
+  return /-flat\.\w+$/.test(path)
 }
 
 /** `abc/123-front.webp` → `abc/123-front-thumb.webp` */
@@ -73,30 +82,45 @@ async function encode(c: HTMLCanvasElement, quality: number): Promise<EncodedIma
   return { blob: jpeg, ext: 'jpg' }
 }
 
-export type CardCrop = { photo: EncodedImage; thumb: EncodedImage }
+/** `flat`: straightened to the card (stored with the `-flat` marker). */
+export type CardCrop = { photo: EncodedImage; thumb: EncodedImage; flat: boolean }
 
-/** Cuts one card out of the full-resolution photo and makes the stored photo plus a thumbnail. */
+/**
+ * Cuts one card out of the full-resolution photo, straightened to the card when its corners are found
+ * for sure (otherwise the plain box), and makes the stored photo plus a thumbnail.
+ */
 export async function cropCard(img: HTMLImageElement, box: Box): Promise<CardCrop> {
-  const b = padBox(box, CROP_MARGIN)
+  const wide = canvasPixels(cut(img, padBox(box, STRAIGHTEN_MARGIN)))
+  const flat = autoStraighten(wide, PHOTO_MAX_EDGE, CAPTURE_CUT_SHARE)
+  if (flat) return finishPhoto(drawPixels(flat), true)
+  return finishPhoto(cut(img, padBox(box, CROP_MARGIN)), false)
+}
+
+/** The part of the photo inside a box, at most PHOTO_MAX_EDGE on the long side. */
+function cut(img: HTMLImageElement, b: Box): HTMLCanvasElement {
   const sx = b.x * img.naturalWidth
   const sy = b.y * img.naturalHeight
   const sw = b.w * img.naturalWidth
   const sh = b.h * img.naturalHeight
-
   const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(sw, sh))
   const full = canvas(sw * scale, sh * scale)
   full.ctx.drawImage(img, sx, sy, sw, sh, 0, 0, full.canvas.width, full.canvas.height)
-  return finishPhoto(full.canvas)
+  return full.canvas
 }
 
 /** Encodes a card photo (already at most PHOTO_MAX_EDGE) plus its thumbnail. */
-export async function finishPhoto(full: HTMLCanvasElement): Promise<CardCrop> {
+export async function finishPhoto(full: HTMLCanvasElement, flat: boolean): Promise<CardCrop> {
   const photo = await encode(full, 0.88)
   const thumbScale = Math.min(1, THUMB_MAX_EDGE / Math.max(full.width, full.height))
   const small = canvas(full.width * thumbScale, full.height * thumbScale)
   small.ctx.drawImage(full, 0, 0, small.canvas.width, small.canvas.height)
   const thumb = await encode(small.canvas, 0.8)
-  return { photo, thumb }
+  return { photo, thumb, flat }
+}
+
+function canvasPixels(c: HTMLCanvasElement): Pixels {
+  const { data, width, height } = c.getContext('2d')!.getImageData(0, 0, c.width, c.height)
+  return { data, width, height }
 }
 
 /** Raw pixels of an image, scaled down to at most `maxEdge` on the long side. */

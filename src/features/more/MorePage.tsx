@@ -14,6 +14,8 @@ import {
 import { ImportExportSections } from '../import-export/ImportExportPage'
 import { AI_MODELS, getAiModel, setAiModel, type AiModel } from '../scan/aiModel'
 import { NO_KNOWN_SETS, useKnownSets } from '../../hooks/useKnownSets'
+import { NO_CARDS, useCards } from '../../hooks/useCards'
+import { touchUpQueue } from '../photos/useTouchUpBatch'
 import { AiCreditSetting } from './AiCreditSetting'
 import { TeamNames } from './TeamNames'
 
@@ -32,6 +34,8 @@ export function MorePage() {
       <AiCreditSetting />
 
       <CardDatabase />
+
+      <PhotoTouchUp />
 
       <PasskeySetting />
 
@@ -138,6 +142,25 @@ function PasskeySetting() {
         <p className="text-sm text-slate-500">This browser doesn’t support passkeys.</p>
       )}
     </section>
+  )
+}
+
+/** The automatic photo touch-up, with how many cards' photos haven't been through it yet. */
+function PhotoTouchUp() {
+  const { data: cards = NO_CARDS } = useCards()
+  const left = touchUpQueue(cards).length
+  return (
+    <Link to="/photos/touch-up" className={`${panel} flex items-center justify-between gap-3 p-4 active:bg-slate-900`}>
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold">Touch up photos</h2>
+        <p className="text-sm text-slate-400">
+          {left
+            ? `${left} ${left === 1 ? 'card' : 'cards'} not checked yet. Straightens crooked cards and fills small glare spots; you pick old or new for each.`
+            : 'All photos checked. Straightens crooked cards and fills small glare spots.'}
+        </p>
+      </div>
+      <Icon name="back" size={18} className="shrink-0 rotate-180 text-slate-500" />
+    </Link>
   )
 }
 

@@ -34,6 +34,7 @@ export function makeCard(overrides: Partial<Card> = {}): Card {
     sold_date: null,
     front_image_path: null,
     back_image_path: null,
+    photos_checked_at: null,
     created_at: '2026-10-01T00:00:00Z',
     updated_at: '2026-10-01T00:00:00Z',
     ...overrides,

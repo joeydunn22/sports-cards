@@ -8,9 +8,9 @@ const TABS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: '/more', label: 'More', icon: 'more' },
 ]
 
-/** Full-screen task pages (add/edit a card, capture, review a scan) have their own actions, so they hide the tabs. */
+/** Full-screen task pages (add/edit a card, capture, review a scan, touch up photos) have their own actions, so they hide the tabs. */
 function isTaskPage(pathname: string) {
-  return pathname.startsWith('/cards/') || pathname.startsWith('/scan/')
+  return pathname.startsWith('/cards/') || pathname.startsWith('/scan/') || pathname.startsWith('/photos/')
 }
 
 export function Layout() {

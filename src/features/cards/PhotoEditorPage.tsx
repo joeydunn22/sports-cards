@@ -6,6 +6,8 @@ import { useCards, useReplaceCardPhoto } from '../../hooks/useCards'
 import { usePhotoImage } from '../../hooks/usePhotos'
 import type { Pixels } from '../../lib/cardDetect'
 import {
+  DETECT_MAX_EDGE,
+  downscale,
   fillGlare,
   FULL_FRAME,
   findCardCorners,
@@ -15,7 +17,7 @@ import {
   warpPerspective,
   type Quad,
 } from '../../lib/photoEdit'
-import { drawPixels, finishPhoto, imagePixels, PHOTO_MAX_EDGE, type Side } from '../../lib/photos'
+import { drawPixels, finishPhoto, imagePixels, isFlatPhoto, PHOTO_MAX_EDGE, type Side } from '../../lib/photos'
 import type { Card } from '../../types/card'
 import { cardTitle } from './cardText'
 import { CornerEditor } from './CornerEditor'
@@ -24,13 +26,12 @@ import { TouchUpCanvas } from './TouchUpCanvas'
 type Mode = 'straighten' | 'touchup'
 /** Each step keeps a full copy of the photo (about 7 MB), so undo stops after this many. */
 const UNDO_LIMIT = 8
-/** Corner finding works on a small copy; more pixels don't help find four corners. */
-const DETECT_MAX_EDGE = 400
 
-type Step = { pixels: Pixels; quad: Quad }
+/** `flat`: the photo is straightened to the card (saved with the `-flat` marker). */
+type Step = { pixels: Pixels; quad: Quad; flat: boolean }
 
 function suggestCorners(pixels: Pixels): Quad {
-  return findCardCorners(imagePixels(drawPixels(pixels), DETECT_MAX_EDGE))
+  return findCardCorners(downscale(pixels, DETECT_MAX_EDGE))
 }
 
 const isFullFrame = (quad: Quad) => quad.every((p, i) => p.x === FULL_FRAME[i].x && p.y === FULL_FRAME[i].y)
@@ -65,19 +66,24 @@ export function PhotoEditorPage() {
     )
   }
   if (!image.data) return <p className="p-6 text-slate-400">Loading photo…</p>
-  return <PhotoEditor key={path} card={card} side={s} image={image.data} />
+  return <PhotoEditor key={path} card={card} side={s} path={path} image={image.data} />
 }
 
-function PhotoEditor({ card, side, image }: { card: Card; side: Side; image: HTMLImageElement }) {
+type PhotoEditorProps = { card: Card; side: Side; path: string; image: HTMLImageElement }
+
+function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
   const navigate = useNavigate()
   const replace = useReplaceCardPhoto()
-  const original = useMemo(() => imagePixels(image), [image])
-  const [current, setCurrent] = useState<Step>(() => ({ pixels: original, quad: suggestCorners(original) }))
+  const original = useMemo<Step>(() => {
+    const pixels = imagePixels(image)
+    return { pixels, quad: suggestCorners(pixels), flat: isFlatPhoto(path) }
+  }, [image, path])
+  const [current, setCurrent] = useState<Step>(original)
   const [history, setHistory] = useState<Step[]>([])
   const [mode, setMode] = useState<Mode>('straighten')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const edited = current.pixels !== original
+  const edited = current.pixels !== original.pixels
   const backTo = `/cards/${card.id}`
 
   // Warn before a reload or tab close throws away an unsaved edit.
@@ -113,16 +119,16 @@ function PhotoEditor({ card, side, image }: { card: Card; side: Side; image: HTM
       const size = outputSize(quad, pixels.width, pixels.height, PHOTO_MAX_EDGE)
       const flat = warpPerspective(pixels, quad, size.width, size.height)
       setMode('touchup') // glare is the usual next step
-      return { pixels: flat, quad: FULL_FRAME }
+      return { pixels: flat, quad: FULL_FRAME, flat: true }
     })
   }
 
   function rotate() {
-    run(() => ({ pixels: rotateQuarter(current.pixels), quad: rotateQuad(current.quad) }))
+    run(() => ({ ...current, pixels: rotateQuarter(current.pixels), quad: rotateQuad(current.quad) }))
   }
 
   function fill(mask: Uint8Array) {
-    run(() => ({ pixels: fillGlare(current.pixels, mask), quad: current.quad }))
+    run(() => ({ ...current, pixels: fillGlare(current.pixels, mask) }))
   }
 
   function undo() {
@@ -134,7 +140,7 @@ function PhotoEditor({ card, side, image }: { card: Card; side: Side; image: HTM
 
   function startOver() {
     setHistory([])
-    setCurrent({ pixels: original, quad: suggestCorners(original) })
+    setCurrent(original)
   }
 
   function cancel() {
@@ -146,7 +152,7 @@ function PhotoEditor({ card, side, image }: { card: Card; side: Side; image: HTM
     setBusy(true)
     setError(null)
     try {
-      const crop = await finishPhoto(drawPixels(current.pixels))
+      const crop = await finishPhoto(drawPixels(current.pixels), current.flat)
       await replace.mutateAsync({ card, side, crop })
       navigate(backTo)
     } catch (e) {

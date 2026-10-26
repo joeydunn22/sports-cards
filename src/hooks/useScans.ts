@@ -107,8 +107,8 @@ export function useCreateScans() {
       const userId = await currentUserId()
       for (const [index, item] of items.entries()) {
         const id = crypto.randomUUID()
-        const front = photoPath(userId, id, 'front', item.front.photo.ext)
-        const back = item.back ? photoPath(userId, id, 'back', item.back.photo.ext) : null
+        const front = photoPath(userId, id, 'front', item.front.photo.ext, item.front.flat)
+        const back = item.back ? photoPath(userId, id, 'back', item.back.photo.ext, item.back.flat) : null
         await uploadPhoto(front, item.front.photo)
         await uploadPhoto(thumbPath(front), item.front.thumb)
         if (item.back && back) {

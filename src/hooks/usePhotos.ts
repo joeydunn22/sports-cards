@@ -30,13 +30,16 @@ export function usePhotoImage(path: string | null | undefined) {
     enabled: path != null,
     staleTime: Infinity,
     gcTime: 0,
-    queryFn: async () => {
-      if (IS_DEMO) return loadImage(await (await fetch(demoPhotoUrl())).blob())
-      const { data, error } = await supabase.storage.from(PHOTO_BUCKET).download(path!)
-      if (error) throw error
-      return loadImage(data)
-    },
+    queryFn: async () => loadImage(await downloadPhoto(path!)),
   })
+}
+
+/** A stored photo's file (the sample photo in demo mode). */
+export async function downloadPhoto(path: string): Promise<Blob> {
+  if (IS_DEMO) return (await fetch(demoPhotoUrl())).blob()
+  const { data, error } = await supabase.storage.from(PHOTO_BUCKET).download(path)
+  if (error) throw error
+  return data
 }
 
 export async function uploadPhoto(path: string, image: EncodedImage) {
