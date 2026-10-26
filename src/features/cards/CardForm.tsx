@@ -56,7 +56,6 @@ type TextFieldName = {
 const FLAGS = [
   ['is_rookie', 'RC'],
   ['is_auto', 'Auto'],
-  ['is_patch', 'Patch'],
   ['is_relic', 'Relic'],
   ['is_graded', 'Graded'],
 ] as const
@@ -158,9 +157,9 @@ export function CardForm({
     return () => window.clearTimeout(timer)
   }, [status])
 
-  const [setName, sport, isRookie, isAuto, isPatch, isRelic, isGraded] = useWatch({
+  const [setName, sport, isRookie, isAuto, isRelic, isGraded] = useWatch({
     control,
-    name: ['set_name', 'sport', 'is_rookie', 'is_auto', 'is_patch', 'is_relic', 'is_graded'],
+    name: ['set_name', 'sport', 'is_rookie', 'is_auto', 'is_relic', 'is_graded'],
   })
   const [player, year, insertName, parallel, cardNumber, serial, printRun, cert] = useWatch({
     control,
@@ -230,7 +229,7 @@ export function CardForm({
         duplicates.excludeId,
       )
     : []
-  const flagValues = { is_rookie: isRookie, is_auto: isAuto, is_patch: isPatch, is_relic: isRelic, is_graded: isGraded }
+  const flagValues = { is_rookie: isRookie, is_auto: isAuto, is_relic: isRelic, is_graded: isGraded }
   const hasMoney = Boolean(
     initialValues.purchase_price || initialValues.estimated_value || initialValues.sold_price,
   )

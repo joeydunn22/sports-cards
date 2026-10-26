@@ -106,8 +106,7 @@ Card attributes live as columns on `cards`. Do **not** create separate set or pl
 | team | text | | |
 | is_rookie | boolean | ✓ | default false |
 | is_auto | boolean | ✓ | default false |
-| is_patch | boolean | ✓ | default false |
-| is_relic | boolean | ✓ | default false (non-patch memorabilia) |
+| is_relic | boolean | ✓ | default false; any memorabilia (jersey, patch, bat, ball). Patch was merged into it on 2026-10-25 at my request |
 | serial_number | int | | the "23" in 23/99 |
 | print_run | int | | the "99" in 23/99; a 1/1 is serial 1, print_run 1 |
 | quantity | int | ✓ | default 1 |
@@ -143,7 +142,7 @@ Rules:
 - The form shows inline hints with these examples under the Set, Insert and Parallel fields.
 - Show a soft, non-blocking warning when the Set field contains a likely parallel word (Refractor, or a color such as Silver, Gold, Red, Blue, Green, Orange, Purple or Black). Some real sets contain those words (such as Topps Gold Label), so the user can always dismiss it.
 - Autocomplete for each field draws only from that field's own past values, so a parallel is never suggested as a set.
-- **Card title** (used in lists and for future eBay listings): `{year} {set} {insert} {parallel} {player} #{card_number} {serial}`. Empty parts are skipped, and RC, Auto, Patch and the grade are appended where they apply. Example: `2023 Topps Finest Red Refractor Shohei Ohtani #12 3/5`.
+- **Card title** (used in lists and for future eBay listings): `{year} {set} {insert} {parallel} {player} #{card_number} {serial}`. Empty parts are skipped, and RC, Auto, Relic (unless the insert name already says it) and the grade are appended where they apply. Example: `2023 Topps Finest Red Refractor Shohei Ohtani #12 3/5`.
 
 ## Security rules (non-negotiable)
 - Row-level security is **enabled on every table**, and every policy is `user_id = auth.uid()`.
@@ -165,9 +164,10 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 ## UX conventions
 - **Mobile-first.** Design at 375px width first. Tap targets are at least 44px.
 - **Quick-add flow:** "Save & add another" keeps year, set, insert and sport filled in, because cards are usually entered in batches from one set. The cursor returns to the player field.
-- Booleans (RC, Auto, Patch, Relic, Graded) are one-tap toggle chips, not checkboxes buried in the form.
+- Booleans (RC, Auto, Relic, Graded) are one-tap toggle chips, not checkboxes buried in the form.
 - Grading fields appear only when Graded is on. Money fields sit in a collapsed "Value" section.
 - Free-text fields use autocomplete drawn from my existing values. A new value is accepted without friction.
+- The Collection screen keeps money out of the way: its summary is cards, players and sets, and the list shows no value or price (most cards have none). Value lives in each card's collapsed Value section until the Phase 3 dashboard. Cards without a photo show no placeholder.
 - The list view shows cards on mobile and a sortable table on desktop. Filters cover sport, year, set, insert, parallel, player, team, the boolean flags, graded and serial-numbered.
 - Edits are optimistic through TanStack Query, and deletes need a confirmation.
 
@@ -207,7 +207,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 
 ## Roadmap
 - **Phase 0: Setup (done).** Git repo, Vite scaffold, Tailwind, oxlint, Supabase project plus the first migration with RLS, email + password login (account created in the dashboard, sign-ups disabled), the GitHub Pages deploy workflow, and the Supabase keep-alive workflow.
-- **Phase 1: MVP (built and deployed; waiting on my phone testing).** Card CRUD, quick-add form, list with search/sort/filter, CSV export and import (export doubles as a backup), PWA install, and a collection summary (count, plus total estimated value where one is entered).
+- **Phase 1: MVP (built and deployed; waiting on my phone testing).** Card CRUD, quick-add form, list with search/sort/filter, CSV export and import (export doubles as a backup), PWA install, and a collection summary (cards, players, sets).
 - **Phase 2: Photos and AI card scanning (in progress).** Typing in about 1,000 cards by hand doesn't scale, so photos become the main way cards get in.
   - **Storage:** a private Supabase Storage bucket. Front and back images per card, compressed on the client to WebP (max about 1600px, about 150 KB) with a thumbnail. Photos are taken with the phone camera via `<input capture>`. Add `front_image_path` and `back_image_path` columns through a migration.
   - **Capture:** photograph several cards per shot, fronts first and then backs. Assume every card is in a penny sleeve plus a toploader, which makes glare the main risk. Cut each card out of the full-resolution photo before sending it to the model, because the model scales any image down to a 2576px long edge. Backs come out in mirror order when cards are flipped.

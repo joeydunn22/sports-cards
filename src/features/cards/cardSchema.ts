@@ -14,7 +14,6 @@ export type CardFormValues = {
   parallel: string
   is_rookie: boolean
   is_auto: boolean
-  is_patch: boolean
   is_relic: boolean
   serial_number: string
   print_run: string
@@ -31,7 +30,7 @@ export type CardFormValues = {
   sold_date: string
 }
 
-export const FLAG_FIELDS = ['is_rookie', 'is_auto', 'is_patch', 'is_relic', 'is_graded'] as const
+export const FLAG_FIELDS = ['is_rookie', 'is_auto', 'is_relic', 'is_graded'] as const
 
 export const emptyCardForm: CardFormValues = {
   player: '',
@@ -44,7 +43,6 @@ export const emptyCardForm: CardFormValues = {
   parallel: '',
   is_rookie: false,
   is_auto: false,
-  is_patch: false,
   is_relic: false,
   serial_number: '',
   print_run: '',
@@ -109,7 +107,6 @@ export const cardFormSchema = z
     parallel: z.string(),
     is_rookie: z.boolean(),
     is_auto: z.boolean(),
-    is_patch: z.boolean(),
     is_relic: z.boolean(),
     serial_number: positiveInt,
     print_run: positiveInt,
@@ -159,7 +156,6 @@ export function toCardInput(v: CardFormValues): CardInput {
     parallel: text(v.parallel),
     is_rookie: v.is_rookie,
     is_auto: v.is_auto,
-    is_patch: v.is_patch,
     is_relic: v.is_relic,
     serial_number: int(v.serial_number),
     print_run: int(v.print_run),
@@ -192,7 +188,6 @@ export function fromCard(card: Card): CardFormValues {
     parallel: str(card.parallel),
     is_rookie: card.is_rookie,
     is_auto: card.is_auto,
-    is_patch: card.is_patch,
     is_relic: card.is_relic,
     serial_number: str(card.serial_number),
     print_run: str(card.print_run),

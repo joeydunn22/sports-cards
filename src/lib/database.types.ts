@@ -178,7 +178,6 @@ export type Database = {
           insert_name: string | null
           is_auto: boolean
           is_graded: boolean
-          is_patch: boolean
           is_relic: boolean
           is_rookie: boolean
           parallel: string | null
@@ -211,7 +210,6 @@ export type Database = {
           insert_name?: string | null
           is_auto?: boolean
           is_graded?: boolean
-          is_patch?: boolean
           is_relic?: boolean
           is_rookie?: boolean
           parallel?: string | null
@@ -244,7 +242,6 @@ export type Database = {
           insert_name?: string | null
           is_auto?: boolean
           is_graded?: boolean
-          is_patch?: boolean
           is_relic?: boolean
           is_rookie?: boolean
           parallel?: string | null

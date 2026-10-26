@@ -18,7 +18,6 @@ export function makeCard(overrides: Partial<Card> = {}): Card {
     parallel: null,
     is_rookie: false,
     is_auto: false,
-    is_patch: false,
     is_relic: false,
     serial_number: null,
     print_run: null,

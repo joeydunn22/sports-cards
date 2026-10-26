@@ -15,7 +15,6 @@ export const CSV_COLUMNS = [
   'team',
   'is_rookie',
   'is_auto',
-  'is_patch',
   'is_relic',
   'serial_number',
   'print_run',
@@ -93,6 +92,8 @@ export function parseCardsCsv(text: string): ImportResult {
         ;(values[key] as string) = raw[key]
       }
     }
+    // Exports from before Patch merged into Relic have an is_patch column.
+    if (TRUE.test(raw.is_patch ?? '')) values.is_relic = true
     if (values.quantity === '') values.quantity = '1'
 
     const parsed = cardFormSchema.safeParse(values)

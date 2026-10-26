@@ -11,7 +11,6 @@ export const FIELDS = [
   'team',
   'is_rookie',
   'is_auto',
-  'is_patch',
   'is_relic',
   'serial_number',
   'print_run',
@@ -32,7 +31,6 @@ export const EXTRACTION_SCHEMA = {
     team: { type: 'string' },
     is_rookie: { type: 'boolean' },
     is_auto: { type: 'boolean' },
-    is_patch: { type: 'boolean' },
     is_relic: { type: 'boolean' },
     serial_number: nullableInt,
     print_run: nullableInt,
@@ -66,7 +64,7 @@ Other fields:
 - team: the team shown on the card, as its full common name, such as "Baltimore Orioles".
 - is_rookie: true when the card has an RC logo or a printed rookie designation.
 - is_auto: true when the card is signed (on-card or sticker autograph).
-- is_patch: true for a multi-color jersey patch piece. is_relic: true for a plain memorabilia swatch (jersey, bat, ball) that is not a patch.
+- is_relic: true when the card holds any piece of memorabilia: a jersey swatch, a patch, a bat or ball piece.
 - serial_number and print_run: from a stamped serial such as "23/99" (serial 23, print run 99); a 1/1 is 1 and 1. Use null for both when the card is not serial numbered.
 
 When the collector already uses a name for the same thing, use their exact spelling. Their existing names:

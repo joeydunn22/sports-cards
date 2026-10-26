@@ -21,8 +21,9 @@ type Reading = {
   team?: string
   is_rookie?: boolean
   is_auto?: boolean
-  is_patch?: boolean
   is_relic?: boolean
+  /** Readings from before Patch merged into Relic. */
+  is_patch?: boolean
   serial_number?: number | null
   print_run?: number | null
 }
@@ -67,7 +68,7 @@ export function asExtraction(value: Json | null): Extraction | null {
 }
 
 const TEXT_FIELDS = ['player', 'year', 'set_name', 'insert_name', 'parallel', 'card_number', 'sport', 'team'] as const
-const FLAG_FIELDS = ['is_rookie', 'is_auto', 'is_patch', 'is_relic'] as const
+const FLAG_FIELDS = ['is_rookie', 'is_auto', 'is_relic'] as const
 
 /** The AI's reading as form values. Anything it didn't return keeps the fallback value. */
 export function extractionToForm(extraction: Extraction, fallback: CardFormValues): CardFormValues {
@@ -81,6 +82,7 @@ export function extractionToForm(extraction: Extraction, fallback: CardFormValue
   for (const field of FLAG_FIELDS) {
     if (typeof e[field] === 'boolean') values[field] = e[field]
   }
+  if (e.is_patch) values.is_relic = true
   if (e.serial_number !== undefined) values.serial_number = e.serial_number == null ? '' : String(e.serial_number)
   if (e.print_run !== undefined) values.print_run = e.print_run == null ? '' : String(e.print_run)
   return values
@@ -99,7 +101,6 @@ const LABELS: Record<string, string> = {
   team: 'Team',
   is_rookie: 'RC',
   is_auto: 'Auto',
-  is_patch: 'Patch',
   is_relic: 'Relic',
   serial_number: 'Serial',
   print_run: 'Print run',

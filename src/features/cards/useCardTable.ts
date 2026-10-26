@@ -9,7 +9,7 @@ import {
   useTable,
   type SortingState,
 } from '@tanstack/react-table'
-import { formatMoney, formatSerial } from '../../lib/format'
+import { formatSerial } from '../../lib/format'
 import { createElement } from 'react'
 import type { Card } from '../../types/card'
 import { CardBadges } from './CardBadges'
@@ -51,14 +51,6 @@ const columns = helper.columns([
     cell: (info) => formatSerial(info.row.original.serial_number, info.row.original.print_run),
   }),
   helper.accessor('quantity', { header: 'Qty', sortFn: 'basic', sortDescFirst: true }),
-  helper.accessor((c) => c.estimated_value ?? undefined, {
-    id: 'estimated_value',
-    header: 'Value',
-    sortFn: 'basic',
-    sortUndefined: 'last',
-    sortDescFirst: true,
-    cell: (info) => formatMoney(info.row.original.estimated_value),
-  }),
   helper.accessor('created_at', {
     header: 'Added',
     sortFn: 'text',
@@ -67,8 +59,12 @@ const columns = helper.columns([
   }),
 ])
 
+const COLUMN_IDS = new Set(columns.map((c) => c.id ?? ('accessorKey' in c ? String(c.accessorKey) : '')))
+
 /** One sorted table instance drives both the phone list and the desktop table. */
-export function useCardTable(data: Card[], sorting: SortingState, setSorting: (s: SortingState) => void) {
+export function useCardTable(data: Card[], saved: SortingState, setSorting: (s: SortingState) => void) {
+  // A sort saved on a column that has since gone (Value) falls back to the default.
+  const sorting = saved.every((s) => COLUMN_IDS.has(s.id)) ? saved : DEFAULT_SORTING
   return useTable({
     features,
     columns,
@@ -88,7 +84,6 @@ export const SORT_OPTIONS: { label: string; sorting: SortingState }[] = [
   { label: 'Year, newest', sorting: [{ id: 'year', desc: true }] },
   { label: 'Year, oldest', sorting: [{ id: 'year', desc: false }] },
   { label: 'Set A–Z', sorting: [{ id: 'set_name', desc: false }] },
-  { label: 'Value, highest', sorting: [{ id: 'estimated_value', desc: true }] },
   { label: 'Print run, lowest', sorting: [{ id: 'print_run', desc: false }] },
 ]
 

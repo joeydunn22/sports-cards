@@ -50,9 +50,8 @@ describe('summarize', () => {
     expect(summarize(all)).toEqual({
       entries: 3,
       totalCards: 4,
-      valuedCards: 3,
-      totalValue: 250,
-      totalCost: 40,
+      players: 3,
+      sets: 3,
     })
   })
 })

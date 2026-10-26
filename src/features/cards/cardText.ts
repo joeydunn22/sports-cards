@@ -13,7 +13,7 @@ type TitleFields = Partial<Pick<
   | 'print_run'
   | 'is_rookie'
   | 'is_auto'
-  | 'is_patch'
+  | 'is_relic'
   | 'is_graded'
   | 'grade_company'
   | 'grade'
@@ -23,6 +23,9 @@ type TitleFields = Partial<Pick<
 export function cleanCardNumber(cardNumber: string): string {
   return cardNumber.trim().replace(/^#\s*/, '')
 }
+
+/** An insert named for its memorabilia ("Rookie Patch", "Relics") already says it. */
+const RELIC_WORD = /(relics?|patch(es)?|jerseys?|memorabilia)/i
 
 /** e.g. "2023 Topps Finest Red Refractor Shohei Ohtani #12 3/5 Auto PSA 10" */
 export function cardTitle(card: TitleFields): string {
@@ -37,7 +40,7 @@ export function cardTitle(card: TitleFields): string {
     formatSerial(card.serial_number, card.print_run),
     card.is_rookie && 'RC',
     card.is_auto && 'Auto',
-    card.is_patch && 'Patch',
+    card.is_relic && !RELIC_WORD.test(card.insert_name ?? '') && 'Relic',
     grade,
   ]
     .filter(Boolean)

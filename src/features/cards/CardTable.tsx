@@ -1,5 +1,4 @@
 import { Link, useNavigate } from 'react-router'
-import { formatMoney } from '../../lib/format'
 import { CardBadges } from './CardBadges'
 import { CardThumb } from './CardThumb'
 import type { CardTableInstance } from './useCardTable'
@@ -63,9 +62,9 @@ export function CardList({ table }: { table: CardTableInstance }) {
         <li key={card.id}>
           <Link
             to={`/cards/${card.id}`}
-            className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-2.5 pr-3 active:bg-slate-800"
+            className="flex min-h-16 items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-2.5 pl-3.5 pr-3 active:bg-slate-800"
           >
-            <CardThumb path={card.front_image_path} />
+            {card.front_image_path && <CardThumb path={card.front_image_path} />}
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">
                 {card.player}
@@ -83,11 +82,6 @@ export function CardList({ table }: { table: CardTableInstance }) {
                 <CardBadges card={card} />
               </div>
             </div>
-            {card.estimated_value != null && (
-              <p className="shrink-0 self-start pt-0.5 text-sm font-semibold tabular-nums text-emerald-300">
-                {formatMoney(card.estimated_value)}
-              </p>
-            )}
           </Link>
         </li>
       ))}

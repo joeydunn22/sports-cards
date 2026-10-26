@@ -1,5 +1,7 @@
 import type { Card } from '../../types/card'
+import { setKey } from '../sets/setIndex'
 import { cardTitle } from './cardText'
+import { nameKey } from './nameMatch'
 
 export const FILTER_FIELDS = ['sport', 'year', 'set_name', 'insert_name', 'parallel', 'team', 'player'] as const
 export type FilterField = (typeof FILTER_FIELDS)[number]
@@ -7,7 +9,6 @@ export type FilterField = (typeof FILTER_FIELDS)[number]
 export const FLAG_FILTERS = {
   is_rookie: 'RC',
   is_auto: 'Auto',
-  is_patch: 'Patch',
   is_relic: 'Relic',
   is_graded: 'Graded',
   numbered: 'Numbered',
@@ -35,6 +36,8 @@ function hasFlag(card: Card, flag: FlagFilter): boolean {
 
 export function filterCards(cards: Card[], filters: CardFilters): Card[] {
   const tokens = filters.search.toLowerCase().split(/\s+/).filter(Boolean)
+  // A filter saved before a flag was retired (Patch) is ignored.
+  const flags = filters.flags.filter((flag) => flag in FLAG_FILTERS)
   const fieldEntries = Object.entries(filters.fields).filter(([, value]) => value) as [FilterField, string][]
 
   return cards.filter((card) => {
@@ -43,7 +46,7 @@ export function filterCards(cards: Card[], filters: CardFilters): Card[] {
     for (const [field, value] of fieldEntries) {
       if ((card[field] ?? '').toLowerCase() !== value.toLowerCase()) return false
     }
-    for (const flag of filters.flags) {
+    for (const flag of flags) {
       if (!hasFlag(card, flag)) return false
     }
     if (tokens.length) {
@@ -78,23 +81,23 @@ export function distinctValues(cards: Card[], field: FilterField | 'grade_compan
 export type CollectionSummary = {
   entries: number
   totalCards: number
-  valuedCards: number
-  totalValue: number
-  totalCost: number
+  players: number
+  sets: number
 }
 
-/** Totals for cards still owned (sold cards are excluded). Quantity multiplies value and cost. */
+/** Counts for cards still owned (sold cards are excluded). Quantity counts toward the card total. */
 export function summarize(cards: Card[]): CollectionSummary {
-  const summary: CollectionSummary = { entries: 0, totalCards: 0, valuedCards: 0, totalValue: 0, totalCost: 0 }
+  const summary: CollectionSummary = { entries: 0, totalCards: 0, players: 0, sets: 0 }
+  const players = new Set<string>()
+  const sets = new Set<string>()
   for (const card of cards) {
     if (isSold(card)) continue
     summary.entries += 1
     summary.totalCards += card.quantity
-    if (card.estimated_value != null) {
-      summary.valuedCards += card.quantity
-      summary.totalValue += card.estimated_value * card.quantity
-    }
-    if (card.purchase_price != null) summary.totalCost += card.purchase_price * card.quantity
+    players.add(nameKey(card.player))
+    sets.add(setKey(card))
   }
+  summary.players = players.size
+  summary.sets = sets.size
   return summary
 }

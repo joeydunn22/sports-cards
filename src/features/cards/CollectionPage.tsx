@@ -8,7 +8,6 @@ import { VersionTag } from '../../components/VersionTag'
 import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
 import { NO_CARDS, useCards } from '../../hooks/useCards'
 import { useSessionState } from '../../hooks/useSessionState'
-import { formatMoney } from '../../lib/format'
 import { CardList, CardTable } from './CardTable'
 import { countActiveFilters, emptyFilters, filterCards, summarize, type CardFilters } from './collection'
 import { FilterPanel } from './FilterPanel'
@@ -53,16 +52,8 @@ export function CollectionPage() {
 
       <section className="mb-5 grid grid-cols-3 gap-2" aria-label="Summary">
         <Stat label={summary.totalCards === 1 ? 'Card' : 'Cards'} value={summary.totalCards.toLocaleString()} />
-        <Stat
-          label="Est. value"
-          value={summary.valuedCards > 0 ? formatMoney(summary.totalValue, { whole: true }) : '—'}
-          note={
-            summary.valuedCards > 0 && summary.valuedCards < summary.totalCards
-              ? `${summary.valuedCards} of ${summary.totalCards} valued`
-              : undefined
-          }
-        />
-        <Stat label="Paid" value={summary.totalCost > 0 ? formatMoney(summary.totalCost, { whole: true }) : '—'} />
+        <Stat label={summary.players === 1 ? 'Player' : 'Players'} value={summary.players.toLocaleString()} />
+        <Stat label={summary.sets === 1 ? 'Set' : 'Sets'} value={summary.sets.toLocaleString()} />
       </section>
 
       {cards.length === 0 ? (
@@ -166,11 +157,11 @@ export function CollectionPage() {
   )
 }
 
-function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className={`${panel} px-3 py-2.5`}>
       <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
-      <p className="truncate text-xs text-slate-400">{note ?? label}</p>
+      <p className="truncate text-xs text-slate-400">{label}</p>
     </div>
   )
 }

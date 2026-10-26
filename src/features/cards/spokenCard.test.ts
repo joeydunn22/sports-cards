@@ -73,7 +73,7 @@ describe('parseCardText', () => {
   })
 
   it('sets the yes/no flags, including from the insert’s name', () => {
-    expect(parse('Bryce Harper rookie auto patch').values).toMatchObject({ is_rookie: true, is_auto: true, is_patch: true })
+    expect(parse('Bryce Harper rookie auto patch').values).toMatchObject({ is_rookie: true, is_auto: true, is_relic: true })
     expect(parse('Bryce Harper RC jersey').values).toMatchObject({ is_rookie: true, is_relic: true })
     const insert = parse('Bryce Harper prospect autographs blue refractor')
     expect(insert.values).toMatchObject({ insert_name: 'Prospect Autographs', is_auto: true, parallel: 'Blue Refractor' })

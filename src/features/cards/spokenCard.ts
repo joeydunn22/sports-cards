@@ -117,13 +117,12 @@ const TEAM_WORDS = new Set(['sox', 'jay', 'wing', 'devil', 'hawk', 'bird', 'raid
 const FLAGS: [keyof CardFormValues, RegExp][] = [
   ['is_rookie', /^(rookie|rc)$/],
   ['is_auto', /^(auto|autograph|autographed|signed|signature)$/],
-  ['is_patch', /^patch$/],
-  ['is_relic', /^(relic|jersey|memorabilia|swatch)$/],
+  ['is_relic', /^(relic|patch|jersey|memorabilia|swatch)$/],
 ]
 
 const FORM_ORDER: (keyof CardFormValues)[] = [
   'year', 'set_name', 'sport', 'player', 'card_number', 'insert_name', 'team', 'parallel', 'serial_number',
-  'print_run', 'is_rookie', 'is_auto', 'is_patch', 'is_relic', 'is_graded', 'grade_company', 'grade',
+  'print_run', 'is_rookie', 'is_auto', 'is_relic', 'is_graded', 'grade_company', 'grade',
 ]
 
 const titleCase = (text: string) =>

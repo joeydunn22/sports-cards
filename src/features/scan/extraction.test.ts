@@ -16,7 +16,6 @@ describe('extractionToForm', () => {
         team: 'Los Angeles Angels',
         is_rookie: false,
         is_auto: false,
-        is_patch: false,
         is_relic: false,
         serial_number: 3,
         print_run: 5,

@@ -47,13 +47,12 @@ export function fillFromCollection(values: CardFormValues, cards: Spot[]): Fill 
 
 const INSERT_FLAGS: [keyof CardFormValues & `is_${string}`, RegExp][] = [
   ['is_auto', /auto|signature/i],
-  ['is_patch', /patch/i],
-  ['is_relic', /relic|jersey|memorabilia/i],
+  ['is_relic', /relic|patch|jersey|memorabilia/i],
 ]
 
 /** The yes/no flags an insert's name settles: "Prospect Autographs" is an auto. */
-export function insertFlags(insertName: string): ('is_auto' | 'is_patch' | 'is_relic')[] {
-  return INSERT_FLAGS.filter(([, pattern]) => pattern.test(insertName)).map(([flag]) => flag as 'is_auto' | 'is_patch' | 'is_relic')
+export function insertFlags(insertName: string): ('is_auto' | 'is_relic')[] {
+  return INSERT_FLAGS.filter(([, pattern]) => pattern.test(insertName)).map(([flag]) => flag as 'is_auto' | 'is_relic')
 }
 
 /** A player's cards in one set, by checklist: what Card # can be. */
@@ -133,7 +132,6 @@ const FIELD_NAMES: Record<string, string> = {
   grade: 'Grade',
   is_rookie: 'RC',
   is_auto: 'Auto',
-  is_patch: 'Patch',
   is_relic: 'Relic',
 }
 

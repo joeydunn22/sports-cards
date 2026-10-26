@@ -20,7 +20,6 @@ const base: Omit<Card, 'id' | 'player' | 'year' | 'set_name' | 'card_number'> = 
   parallel: null,
   is_rookie: false,
   is_auto: false,
-  is_patch: false,
   is_relic: false,
   serial_number: null,
   print_run: null,
@@ -46,7 +45,7 @@ export const demoCards: Card[] = [
   { ...base, id: 'd2', player: 'Jackson Holliday', year: '2022', set_name: 'Bowman Chrome', card_number: 'CPA-JH', team: 'Orioles', insert_name: 'Prospect Autographs', is_auto: true, is_rookie: true, estimated_value: 120, purchase_price: 80 },
   { ...base, id: 'd3', player: 'Victor Wembanyama', year: '2023-24', set_name: 'Panini Prizm', card_number: '136', sport: 'Basketball', team: 'Spurs', parallel: 'Silver', is_rookie: true, is_graded: true, grade_company: 'PSA', grade: '10', estimated_value: 300 },
   { ...base, id: 'd4', player: 'Connor Bedard', year: '2023-24', set_name: 'Upper Deck Series 1', card_number: '201', sport: 'Hockey', team: 'Blackhawks', insert_name: 'Young Guns', is_rookie: true, quantity: 2 },
-  { ...base, id: 'd5', player: 'Elly De La Cruz', year: '2024', set_name: 'Topps Chrome', card_number: 'USC1', team: 'Reds', insert_name: 'Update Rookie Patch', is_patch: true, is_auto: true, serial_number: 12, print_run: 50 },
+  { ...base, id: 'd5', player: 'Elly De La Cruz', year: '2024', set_name: 'Topps Chrome', card_number: 'USC1', team: 'Reds', insert_name: 'Update Rookie Patch', is_relic: true, is_auto: true, serial_number: 12, print_run: 50 },
   { ...base, id: 'd6', player: 'Julio Rodríguez', year: '2022', set_name: 'Topps Heritage', card_number: '650', team: 'Mariners', is_rookie: true },
 ]
 
@@ -64,8 +63,7 @@ const scan = (id: string, status: string, extraction: object | null): CardScan =
   updated_at: '2026-10-04T00:00:00Z',
 })
 const reading = {
-  sport: 'Baseball', team: '', insert_name: '', parallel: '', is_rookie: false, is_auto: false, is_patch: false,
-  is_relic: false, serial_number: null, print_run: null, inferred_fields: [], uncertain_fields: [], needs_lookup: false,
+  sport: 'Baseball', team: '', insert_name: '', parallel: '', is_rookie: false, is_auto: false,  is_relic: false, serial_number: null, print_run: null, inferred_fields: [], uncertain_fields: [], needs_lookup: false,
   retake: '', notes: '', model: 'claude-sonnet-5-5', usage,
 }
 
