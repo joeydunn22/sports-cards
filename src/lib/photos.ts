@@ -1,4 +1,4 @@
-import { detectCards, padBox, type Box } from './cardDetect'
+import { detectCards, padBox, type Box, type Pixels } from './cardDetect'
 
 /**
  * Photo handling in the browser: decoding camera photos, finding cards in them, and cutting each card
@@ -9,7 +9,7 @@ import { detectCards, padBox, type Box } from './cardDetect'
 export const PHOTO_BUCKET = 'card-photos'
 
 /** Long edge of the stored photo: sharp enough for the AI to read fine print on one card. */
-const PHOTO_MAX_EDGE = 1600
+export const PHOTO_MAX_EDGE = 1600
 const THUMB_MAX_EDGE = 320
 /** Long edge of the copy used for detection; more pixels don't help find rectangles. */
 const DETECT_MAX_EDGE = 800
@@ -86,12 +86,39 @@ export async function cropCard(img: HTMLImageElement, box: Box): Promise<CardCro
   const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(sw, sh))
   const full = canvas(sw * scale, sh * scale)
   full.ctx.drawImage(img, sx, sy, sw, sh, 0, 0, full.canvas.width, full.canvas.height)
-  const photo = await encode(full.canvas, 0.88)
+  return finishPhoto(full.canvas)
+}
 
-  const thumbScale = Math.min(1, THUMB_MAX_EDGE / Math.max(full.canvas.width, full.canvas.height))
-  const small = canvas(full.canvas.width * thumbScale, full.canvas.height * thumbScale)
-  small.ctx.drawImage(full.canvas, 0, 0, small.canvas.width, small.canvas.height)
+/** Encodes a card photo (already at most PHOTO_MAX_EDGE) plus its thumbnail. */
+export async function finishPhoto(full: HTMLCanvasElement): Promise<CardCrop> {
+  const photo = await encode(full, 0.88)
+  const thumbScale = Math.min(1, THUMB_MAX_EDGE / Math.max(full.width, full.height))
+  const small = canvas(full.width * thumbScale, full.height * thumbScale)
+  small.ctx.drawImage(full, 0, 0, small.canvas.width, small.canvas.height)
   const thumb = await encode(small.canvas, 0.8)
-
   return { photo, thumb }
+}
+
+/** Raw pixels of an image, scaled down to at most `maxEdge` on the long side. */
+export function imagePixels(img: HTMLImageElement | HTMLCanvasElement, maxEdge = PHOTO_MAX_EDGE): Pixels {
+  const w = img instanceof HTMLImageElement ? img.naturalWidth : img.width
+  const h = img instanceof HTMLImageElement ? img.naturalHeight : img.height
+  const scale = Math.min(1, maxEdge / Math.max(w, h))
+  const { ctx, canvas: c } = canvas(w * scale, h * scale)
+  ctx.drawImage(img, 0, 0, c.width, c.height)
+  const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height)
+  return { data, width, height }
+}
+
+/** Draws raw pixels onto a canvas (a new one unless `target` is given). */
+export function drawPixels(pixels: Pixels, target?: HTMLCanvasElement): HTMLCanvasElement {
+  const c = target ?? document.createElement('canvas')
+  c.width = pixels.width
+  c.height = pixels.height
+  const ctx = c.getContext('2d')
+  if (!ctx) throw new Error('Canvas is not available in this browser.')
+  const image = ctx.createImageData(pixels.width, pixels.height)
+  image.data.set(pixels.data)
+  ctx.putImageData(image, 0, 0)
+  return c
 }

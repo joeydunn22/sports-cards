@@ -52,7 +52,7 @@ src/
       teams.ts         standardTeam(): one spelling per team (by sport and card year), Multiple Teams; teamFixes()
       useCardTable.ts  TanStack Table columns and sort options
       CardForm (set first, then card, version), QuickEntry (voice box), SetSection, ParallelPicker,
-      NewCardPage, EditCardPage, CollectionPage,
+      NewCardPage, EditCardPage, CollectionPage, PhotoEditorPage (CornerEditor, TouchUpCanvas, PhotoFrame),
       CardTable (CardTable + CardList), FilterPanel, CardBadges (.tsx)
     import-export/ cardCsv.ts (CSV <-> cards, validation), ImportExportPage.tsx (sections shown on More)
     scan/          captureState.ts (photos -> card spots, pairing), extraction.ts (AI reading + lookup -> form, cost, inbox sections),
@@ -68,6 +68,7 @@ src/
     csv.ts         RFC 4180 parse/serialize and download helper
     format.ts      formatSerial(), formatMoney()
     cardDetect.ts  finds cards in a photo (pure, tested); photos.ts decodes, crops and compresses in the browser
+    photoEdit.ts   photo touch-up (pure, tested): four corners -> upright card (homography), glare fill (inpaint)
   hooks/           useAuth, usePasskeys (Face ID), useCards, useScans (inbox, upload, AI submit/poll), usePhotos (signed URLs, upload),
                    useSessionState, useSetParallels / useChecklist (one set at a time), useKnownSets (Sets page counts),
                    useCardpedia (imports)
@@ -191,7 +192,12 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
   - Claude can't sign in, so the function is verified only to reject requests without a login. The first real run may surface API errors; the inbox shows the error text.
   - Next with me: the Phase 1 phone test, then the roughly 20-card AI test (photos with 9, 6 and 4 cards and one card at a time; Sonnet vs others), then tune detection and the prompt.
   - **Triage and checklist lookup (built 2026-10-04, untested with real cards):** after the first reading, `triage.ts` in the function sorts each card into ready, lookup, retake or unidentified. Only "lookup" cards (a specific doubt, with enough read to search by) get one web-search pass (max 3 searches, about 1¢ each); the result goes in `extraction.lookup`. A lookup never repeats. Retakes, unidentified cards and lookups that leave the identity open go to the inbox's "Needs you" section; the inbox warns when many cards land there, since that points to the photos. My instruction: the unsure bucket must not become a dumping ground.
-  - Not built yet: adding or replacing photos on an existing card.
+  - Not built yet: adding or replacing photos on an existing card (retakes). My instruction: retakes must stay separate from photo touch-up.
+- **Photo touch-up (built 2026-10-26, untested on my phone):** the Edit button on a saved card's photo opens `PhotoEditorPage`, all in the browser, with no AI and no cost.
+  - **Straighten:** corners are suggested automatically; I drag them onto the card (a magnifier helps), and the card is flattened upright.
+  - **Touch up:** paint over glare and tap Fill. It fills from the surrounding colours, growing slightly past the painted area. It can't recover text or faces under the glare.
+  - Save replaces the photo and its thumbnail under a new path and deletes the old files. Only the latest version is kept, my choice.
+  - Demo mode (`?demo`) gives the first demo card a sample photo for checking the editor; saving there does nothing.
 - **Duplicate detection (built 2026-10-04):** `duplicates.ts`. The form flags a card already in the collection; on save, a plain extra copy offers "Add to it" (quantity) and a same serial/cert asks before saving twice. Graded and numbered copies stay separate rows.
 - **Face ID sign-in (built 2026-10-04):** Supabase Auth passkeys (`usePasskeys.ts`); set up from More, used from the login screen. Passkeys are enabled in the dashboard (RP ID `joeydunn22.github.io`, confirmed 2026-10-05). Ask whether setting it up on my iPhone worked.
 - **AI spending (built 2026-10-05):** every AI action goes through `useAiApproval` (cost estimate dialog; "Ask before AI runs" can be turned off on More, but a run that could exceed the credit left always asks). The function logs each call's actual cost to `ai_usage`; More shows credit left = the balance I enter from the Console minus logged spend (Anthropic has no balance API, and its cost Admin API isn't open to individual accounts). Settings live in `app_settings` (also `auto_lookup`: automatic checklist searches after reading). Estimates in `costEstimate.ts` start from typical figures and switch to my own averages after 5 runs.

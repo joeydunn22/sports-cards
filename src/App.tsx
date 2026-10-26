@@ -6,6 +6,7 @@ import { RequireAuth } from './features/auth/RequireAuth'
 import { CollectionPage } from './features/cards/CollectionPage'
 import { EditCardPage } from './features/cards/EditCardPage'
 import { NewCardPage } from './features/cards/NewCardPage'
+import { PhotoEditorPage } from './features/cards/PhotoEditorPage'
 import { MorePage } from './features/more/MorePage'
 import { CapturePage } from './features/scan/CapturePage'
 import { ReviewScanPage } from './features/scan/ReviewScanPage'
@@ -28,6 +29,7 @@ export default function App() {
                 <Route path="/" element={<CollectionPage />} />
                 <Route path="/cards/new" element={<NewCardPage />} />
                 <Route path="/cards/:id" element={<EditCardPage />} />
+                <Route path="/cards/:id/photo/:side" element={<PhotoEditorPage />} />
                 <Route path="/scan" element={<ScanPage />} />
                 <Route path="/scan/new" element={<CapturePage />} />
                 <Route path="/scan/:id" element={<ReviewScanPage />} />

@@ -1,25 +1,30 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { Icon } from '../../components/Icon'
 import { usePhotoUrl } from '../../hooks/usePhotos'
 
-type CardPhotosProps = { front: string | null; back: string | null }
+/** `cardId` adds an Edit button to each photo (saved cards only; scans in the inbox have none). */
+type CardPhotosProps = { front: string | null; back: string | null; cardId?: string }
 
 /** Front and back side by side; tap one to see it full screen. */
-export function CardPhotos({ front, back }: CardPhotosProps) {
+export function CardPhotos({ front, back, cardId }: CardPhotosProps) {
   const [open, setOpen] = useState<string | null>(null)
   if (!front && !back) return null
+  const editTo = (side: 'front' | 'back') => (cardId ? `/cards/${cardId}/photo/${side}` : undefined)
   return (
     <>
       <div className="mb-4 grid grid-cols-2 gap-3">
-        <Photo path={front} label="Front" onOpen={setOpen} />
-        <Photo path={back} label="Back" onOpen={setOpen} />
+        <Photo path={front} label="Front" editTo={editTo('front')} onOpen={setOpen} />
+        <Photo path={back} label="Back" editTo={editTo('back')} onOpen={setOpen} />
       </div>
       {open && <Lightbox path={open} onClose={() => setOpen(null)} />}
     </>
   )
 }
 
-function Photo({ path, label, onOpen }: { path: string | null; label: string; onOpen: (path: string) => void }) {
+type PhotoProps = { path: string | null; label: string; editTo?: string; onOpen: (path: string) => void }
+
+function Photo({ path, label, editTo, onOpen }: PhotoProps) {
   const { data: url, isError } = usePhotoUrl(path)
   if (!path) {
     return (
@@ -29,21 +34,32 @@ function Photo({ path, label, onOpen }: { path: string | null; label: string; on
     )
   }
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(path)}
-      aria-label={`View ${label.toLowerCase()} full size`}
-      className="relative grid aspect-[5/7] place-items-center overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
-    >
-      {url ? (
-        <img src={url} alt={label} className="size-full object-contain" />
-      ) : (
-        <span className="text-sm text-slate-500">{isError ? 'Couldn’t load' : 'Loading…'}</span>
-      )}
-      <span className="absolute bottom-1.5 left-1.5 rounded-md bg-slate-950/80 px-1.5 py-0.5 text-[11px] font-semibold text-slate-200">
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => onOpen(path)}
+        aria-label={`View ${label.toLowerCase()} full size`}
+        className="grid aspect-[5/7] w-full place-items-center overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
+      >
+        {url ? (
+          <img src={url} alt={label} className="size-full object-contain" />
+        ) : (
+          <span className="text-sm text-slate-500">{isError ? 'Couldn’t load' : 'Loading…'}</span>
+        )}
+      </button>
+      <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-md bg-slate-950/80 px-1.5 py-0.5 text-[11px] font-semibold text-slate-200">
         {label}
       </span>
-    </button>
+      {editTo && (
+        <Link
+          to={editTo}
+          aria-label={`Edit ${label.toLowerCase()} photo`}
+          className="absolute right-1 bottom-1 grid size-11 place-items-center rounded-full bg-slate-950/80 text-slate-100 active:bg-slate-800"
+        >
+          <Icon name="edit" size={18} />
+        </Link>
+      )}
+    </div>
   )
 }
 

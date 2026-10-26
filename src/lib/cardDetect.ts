@@ -80,7 +80,7 @@ const cy = (b: Box) => b.y + b.h / 2
 
 type PixelBox = { x: number; y: number; w: number; h: number }
 
-function toGray({ data, width, height }: Pixels): Uint8Array {
+export function toGray({ data, width, height }: Pixels): Uint8Array {
   const gray = new Uint8Array(width * height)
   for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
     gray[i] = (data[p] * 299 + data[p + 1] * 587 + data[p + 2] * 114) / 1000
@@ -88,7 +88,7 @@ function toGray({ data, width, height }: Pixels): Uint8Array {
   return gray
 }
 
-function otsuThreshold(gray: Uint8Array): number {
+export function otsuThreshold(gray: Uint8Array): number {
   const hist = new Array<number>(256).fill(0)
   for (const v of gray) hist[v]++
   const total = gray.length
@@ -117,7 +117,7 @@ function otsuThreshold(gray: Uint8Array): number {
 }
 
 /** Average brightness of the outer edge of the photo: that's the background. */
-function borderMean(gray: Uint8Array, width: number, height: number): number {
+export function borderMean(gray: Uint8Array, width: number, height: number): number {
   let sum = 0
   let count = 0
   for (let x = 0; x < width; x++) {
@@ -132,7 +132,7 @@ function borderMean(gray: Uint8Array, width: number, height: number): number {
 }
 
 /** Square dilation, done as two separable passes. */
-function dilate(mask: Uint8Array, width: number, height: number, radius: number): Uint8Array {
+export function dilate(mask: Uint8Array, width: number, height: number, radius: number): Uint8Array {
   const horizontal = new Uint8Array(mask.length)
   for (let y = 0; y < height; y++) {
     const row = y * width

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { IS_DEMO } from '../dev/demo'
-import { PHOTO_BUCKET, thumbPath, type EncodedImage } from '../lib/photos'
+import { demoPhotoUrl, IS_DEMO } from '../dev/demo'
+import { loadImage, PHOTO_BUCKET, thumbPath, type EncodedImage } from '../lib/photos'
 import { supabase } from '../lib/supabase'
 
 /** Signed URLs last an hour; refresh a little before they expire. */
@@ -11,13 +11,30 @@ export function usePhotoUrl(path: string | null | undefined, { thumb = false } =
   const target = path ? (thumb ? thumbPath(path) : path) : null
   return useQuery({
     queryKey: ['photo-url', target],
-    enabled: target != null && !IS_DEMO,
+    enabled: target != null,
     staleTime: (URL_TTL_SECONDS - 300) * 1000,
     gcTime: (URL_TTL_SECONDS - 300) * 1000,
     queryFn: async () => {
+      if (IS_DEMO) return demoPhotoUrl()
       const { data, error } = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(target!, URL_TTL_SECONDS)
       if (error) throw error
       return data.signedUrl
+    },
+  })
+}
+
+/** A stored photo decoded for editing. Downloaded as a blob so the canvas can read its pixels. */
+export function usePhotoImage(path: string | null | undefined) {
+  return useQuery({
+    queryKey: ['photo-image', path],
+    enabled: path != null,
+    staleTime: Infinity,
+    gcTime: 0,
+    queryFn: async () => {
+      if (IS_DEMO) return loadImage(await (await fetch(demoPhotoUrl())).blob())
+      const { data, error } = await supabase.storage.from(PHOTO_BUCKET).download(path!)
+      if (error) throw error
+      return loadImage(data)
     },
   })
 }

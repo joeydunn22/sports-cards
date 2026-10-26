@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { demoCards, IS_DEMO } from '../dev/demo'
+import { photoPath, thumbPath, type CardCrop, type Side } from '../lib/photos'
 import { supabase } from '../lib/supabase'
-import { removePhotos } from './usePhotos'
+import { currentUserId, removePhotos, uploadPhoto } from './usePhotos'
 import type { Card, CardInput } from '../types/card'
 
 export const CARDS_KEY = ['cards'] as const
@@ -87,6 +88,39 @@ export function useAddQuantity() {
         .select()
         .single()
       if (error) throw error
+      return data
+    },
+    onSuccess: (card) => {
+      queryClient.setQueryData<Card[]>(CARDS_KEY, (old) => old?.map((c) => (c.id === card.id ? card : c)))
+    },
+  })
+}
+
+/**
+ * Replaces one side's photo with an edited copy; the old photo and thumbnail are deleted (only the latest
+ * version is kept). The new file gets a fresh path so cached signed URLs can't show the old image.
+ */
+export function useReplaceCardPhoto() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ card, side, crop }: { card: Card; side: Side; crop: CardCrop }) => {
+      if (IS_DEMO) return card // no storage in demo mode
+      const userId = await currentUserId()
+      const path = photoPath(userId, crypto.randomUUID(), side, crop.photo.ext)
+      await uploadPhoto(path, crop.photo)
+      await uploadPhoto(thumbPath(path), crop.thumb)
+      const { data, error } = await supabase
+        .from('cards')
+        .update(side === 'front' ? { front_image_path: path } : { back_image_path: path })
+        .eq('id', card.id)
+        .select()
+        .single()
+      if (error) {
+        await removePhotos([path]).catch(() => {})
+        throw error
+      }
+      // The card already points at the new photo; a leftover old file is harmless.
+      await removePhotos([side === 'front' ? card.front_image_path : card.back_image_path]).catch(() => {})
       return data
     },
     onSuccess: (card) => {

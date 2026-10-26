@@ -49,7 +49,7 @@ export function EditCardPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] md:pt-4">
       <PageHeader title="Edit card" subtitle={cardTitle(card)} backTo="/" backLabel="Collection" />
-      <CardPhotos front={card.front_image_path} back={card.back_image_path} />
+      <CardPhotos front={card.front_image_path} back={card.back_image_path} cardId={card.id} />
       {/* key: remount with fresh values if the card changes underneath us */}
       <CardForm
         key={card.updated_at}

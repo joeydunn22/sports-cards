@@ -41,7 +41,7 @@ const base: Omit<Card, 'id' | 'player' | 'year' | 'set_name' | 'card_number'> = 
 }
 
 export const demoCards: Card[] = [
-  { ...base, id: 'd1', player: 'Shohei Ohtani', year: '2023', set_name: 'Topps Finest', card_number: '12', team: 'Angels', parallel: 'Red Refractor', serial_number: 3, print_run: 5, estimated_value: 450 },
+  { ...base, id: 'd1', front_image_path: 'demo/d1-front.webp', player: 'Shohei Ohtani', year: '2023', set_name: 'Topps Finest', card_number: '12', team: 'Angels', parallel: 'Red Refractor', serial_number: 3, print_run: 5, estimated_value: 450 },
   { ...base, id: 'd2', player: 'Jackson Holliday', year: '2022', set_name: 'Bowman Chrome', card_number: 'CPA-JH', team: 'Orioles', insert_name: 'Prospect Autographs', is_auto: true, is_rookie: true, estimated_value: 120, purchase_price: 80 },
   { ...base, id: 'd3', player: 'Victor Wembanyama', year: '2023-24', set_name: 'Panini Prizm', card_number: '136', sport: 'Basketball', team: 'Spurs', parallel: 'Silver', is_rookie: true, is_graded: true, grade_company: 'PSA', grade: '10', estimated_value: 300 },
   { ...base, id: 'd4', player: 'Connor Bedard', year: '2023-24', set_name: 'Upper Deck Series 1', card_number: '201', sport: 'Hockey', team: 'Blackhawks', insert_name: 'Young Guns', is_rookie: true, quantity: 2 },
@@ -159,3 +159,37 @@ export const demoChecklist: ChecklistEntry[] = [
   spot('2023', 'Topps Finest', '', '12', 'Shohei Ohtani'),
   spot('2023', 'Topps Finest', '', '50', 'Julio Rodríguez'),
 ]
+
+let samplePhoto: string | null = null
+
+/** Every demo photo: a card sitting crooked in its crop, with a glare spot, for checking the photo editor. */
+export function demoPhotoUrl(): string {
+  if (samplePhoto) return samplePhoto
+  const c = document.createElement('canvas')
+  c.width = 760
+  c.height = 1000
+  const ctx = c.getContext('2d')!
+  ctx.fillStyle = '#1f2937'
+  ctx.fillRect(0, 0, c.width, c.height)
+  ctx.translate(380, 500)
+  ctx.rotate((6 * Math.PI) / 180)
+  ctx.fillStyle = '#f8fafc'
+  ctx.fillRect(-300, -420, 600, 840)
+  ctx.fillStyle = '#b91c1c'
+  ctx.fillRect(-270, -390, 540, 640)
+  ctx.fillStyle = '#0f172a'
+  ctx.font = 'bold 54px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillText('SHOHEI OHTANI', 0, 330)
+  ctx.font = '36px sans-serif'
+  ctx.fillText('ANGELS · #12', 0, 385)
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  const glare = ctx.createRadialGradient(470, 330, 10, 470, 330, 75)
+  glare.addColorStop(0, 'rgba(255,255,255,1)')
+  glare.addColorStop(0.6, 'rgba(255,255,255,0.85)')
+  glare.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = glare
+  ctx.fillRect(0, 0, c.width, c.height)
+  samplePhoto = c.toDataURL('image/jpeg', 0.9)
+  return samplePhoto
+}
