@@ -12,9 +12,7 @@ export function formatMoney(amount: number | null, { whole = false } = {}): stri
   return (whole ? usdWhole : usd).format(amount)
 }
 
-const buildDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
-
-/** "Oct 25 · 3d43676": the day a build was made, then its commit. */
-export function formatBuild(build: { id: string; time: string }): string {
-  return `${buildDate.format(new Date(build.time))} · ${build.id}`
+/** "v12" for a deployed build; "dev" for a local one. */
+export function formatBuild(build: { version: number | null }): string {
+  return build.version == null ? 'dev' : `v${build.version}`
 }

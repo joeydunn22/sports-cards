@@ -18,7 +18,8 @@ export function useAppVersion() {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: true,
   })
-  return { current: CURRENT_BUILD, latest, outdated: latest != null && latest.id !== CURRENT_BUILD.id }
+  const outdated = latest?.version != null && CURRENT_BUILD.version != null && latest.version > CURRENT_BUILD.version
+  return { current: CURRENT_BUILD, latest, outdated }
 }
 
 /** Picks up the newest deploy: asks the service worker to fetch it, then reloads onto it. */

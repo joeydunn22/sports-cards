@@ -20,7 +20,11 @@ describe('formatSerial', () => {
 })
 
 describe('formatBuild', () => {
-  it('shows the build day and commit', () => {
-    expect(formatBuild({ id: '3d43676', time: '2026-10-25T12:00:00.000Z' })).toBe('Oct 25 · 3d43676')
+  it('numbers deployed builds', () => {
+    expect(formatBuild({ version: 12 })).toBe('v12')
+  })
+
+  it('marks local builds', () => {
+    expect(formatBuild({ version: null })).toBe('dev')
   })
 })

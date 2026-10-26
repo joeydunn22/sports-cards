@@ -11,4 +11,4 @@ interface ImportMeta {
 }
 
 /** Set by vite.config.ts at build time. */
-declare const __BUILD__: { id: string; time: string }
+declare const __BUILD__: { version: number | null; time: string }

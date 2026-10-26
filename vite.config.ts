@@ -1,19 +1,17 @@
 /// <reference types="vitest/config" />
-import { execSync } from 'node:child_process'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-/** Which build this is: the commit it was built from, and when. Shown on the Collection screen. */
-function commitId(): string {
-  try {
-    return execSync('git rev-parse --short HEAD').toString().trim()
-  } catch {
-    return 'dev'
-  }
-}
-const build = { id: commitId(), time: new Date().toISOString() }
+/**
+ * Which build this is, shown on the Collection screen as v1, v2…: one number per deploy, counted from the
+ * deploy workflow's run number (APP_RUN in deploy.yml). Run 23 was the first numbered deploy, so it's v1.
+ * Local builds have no number (null, shown as "dev").
+ */
+const FIRST_NUMBERED_RUN = 23
+const run = Number(process.env.APP_RUN)
+const build = { version: run ? run - FIRST_NUMBERED_RUN + 1 : null, time: new Date().toISOString() }
 
 /**
  * Writes version.json next to the app. The app fetches it past the service worker (json isn't precached)
