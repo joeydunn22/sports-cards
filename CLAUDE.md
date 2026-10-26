@@ -43,10 +43,15 @@ src/
       cardText.ts      cardTitle(), setNameWarning()
       collection.ts    filterCards(), distinctValues(), summarize(), isSold()
       duplicates.ts    findDuplicates(): same card already in the collection (DuplicateNotice.tsx shows it)
-      parallels.ts     matchParallel(): a set's parallel list names the parallel from the print run (and back)
+      parallels.ts     matchParallel(): a set's parallel list names the parallel from the print run (and back);
+                       parallelOptions(): the form's rainbow picker
+      autofill.ts      free fill-in: cardNumberFill() (Card # from the checklist), fillFromCollection()
+      nameMatch.ts     loose player-name matching (accents, Jr., small typos)
+      spokenCard.ts    parseCardText(): one spoken/typed sentence -> form fields (free, on the phone)
       suggestions.ts   per-field autocomplete lists, last-used sport
       useCardTable.ts  TanStack Table columns and sort options
-      CardForm, NewCardPage, EditCardPage, CollectionPage,
+      CardForm (set first, then card, version), QuickEntry (voice box), SetSection, ParallelPicker,
+      NewCardPage, EditCardPage, CollectionPage,
       CardTable (CardTable + CardList), FilterPanel, CardBadges (.tsx)
     import-export/ cardCsv.ts (CSV <-> cards, validation), ImportExportPage.tsx (sections shown on More)
     scan/          captureState.ts (photos -> card spots, pairing), extraction.ts (AI reading + lookup -> form, cost, inbox sections),
@@ -166,7 +171,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - The list view shows cards on mobile and a sortable table on desktop. Filters cover sport, year, set, insert, parallel, player, team, the boolean flags, graded and serial-numbered.
 - Edits are optimistic through TanStack Query, and deletes need a confirmation.
 
-## Current status (updated 2026-10-05)
+## Current status (updated 2026-10-25)
 - **Live app:** https://joeydunn22.github.io/sports-cards/
 - **Repo:** https://github.com/joeydunn22/sports-cards (public; GitHub user `joeydunn22`).
 - **Supabase project ref:** `algnikifgctzpkwplvtq` (URL `https://algnikifgctzpkwplvtq.supabase.co`).
@@ -192,7 +197,13 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - **Card database / checklist cache (built 2026-10-05, my choice over imported checklists or a paid API):** `checklist_entries`, one row per checklist spot (year + set + insert + card #). A trigger on `cards` keeps it in step with saved cards (trusted, source `collection`); checklist searches that settle a card's identity add `search` rows, never overriding a saved card. Before any checklist web search, the function tries `cache.ts`: if the cache answers every doubt, the card is settled free; otherwise the matching entry goes into the search prompt as a hint. Add card's free fill-in uses it too. More shows its size.
 - **Set parallel lists (built 2026-10-25, untested with real data):** `set_parallels`, one row per year + set + insert + parallel with its print run, so a print run names the parallel (2011 Bowman Chrome Draft /5 = Red Refractor). Learned from saved cards (trigger), fetched by AI once per set (`parallel_fetches`; batch from the Sets page's "Get sets ready", or right away from the form's "Look up parallels" button), or added/imported by hand on the Sets page (`manual`, never overwritten). Scans settle an unsure parallel from it for free before triage; a checklist search also brings back the list when the set has none. The form fills the parallel or print run, offers the 1/1 choices, and warns on a mismatch. The Sets page (from More) replaced the "Card database" count and shows both parallels and checklist spots per set.
 - **Baseball Cardpedia (built 2026-10-25, untested with real cards; my collection is mostly baseball, mostly 2010 on):** baseballcardpedia.com is a free wiki with an open MediaWiki API (TCDB, Beckett, Topps and Panini block server requests). `cardpedia.ts` matches a set to a page ("Topps Finest" → "2024 Finest", "Bowman Chrome Draft" → the Bowman Draft page's Chrome rows) and parses its odds table (every parallel with its print run, by insert) and checklist, with no AI and no cost. Rows go in `set_parallels` / `checklist_entries` as source `cardpedia` (replacing AI-searched parallels; saved cards and hand entries win), and `cardpedia_imports` records the page used per set. It runs automatically for baseball sets the first time a card from them is read in a scan (before triage, so a print run settles the parallel for free), when a baseball set is entered in the form, and first in "Get sets ready" (paid AI only for sets it doesn't have). The set page shows the source page and can point a set at another page. Both tables now load one set at a time (`set_key` / `player_key` columns, `known_sets` view for counts), since full checklists pass Supabase's 1,000-row cap. Verified from Supabase's servers: 2024 Topps reads 215 parallels and 3,572 cards in about 0.6 s.
-- **Manual-entry fill-in (built 2026-10-05; AI lookup button removed at my request, since I expect little manual entry):** leaving Player, Year, Set or Card # fills blanks for free from matching cards in my collection (`autofill.ts`).
+- **Manual entry, reworked (built 2026-10-25, untested on my phone):** Add card runs set first (Year, Set, Sport, with a status line saying what the card database knows about the set, or that Cardpedia couldn't be reached), then Card (Player, Card #, Insert, Team), then Version.
+  - After Save & add another the set folds to one line ("Change" opens it).
+  - Card # fills from the set's checklist once Player is in (loose name match, the checklist's spelling, Insert/RC/Auto from the checklist); several cards of the player show as chips.
+  - The set's rainbow shows as chips under Parallel (a tap fills parallel + print run; a typed print run highlights its parallel).
+  - Voice box at the top ("Say or type the card"): the browser's speech recognition where available, otherwise the keyboard's dictation key; `spokenCard.ts` parses the sentence for free against the set's checklist and rainbow (my choice over AI parsing).
+  - Leaving Player, Year, Set or Card # still fills blanks from my collection (`autofill.ts`).
+  - Found while building it: the form's Cardpedia lookup had never run for my 2011 Bowman Chrome card (failures were silent; now shown), and the 2010–2011 Bowman Chrome odds tables parsed badly ("Red Refractor*", "Base Set Refractor", Prospects as a parallel). The parser is fixed and deployed.
 
 ## Roadmap
 - **Phase 0: Setup (done).** Git repo, Vite scaffold, Tailwind, oxlint, Supabase project plus the first migration with RLS, email + password login (account created in the dashboard, sign-ups disabled), the GitHub Pages deploy workflow, and the Supabase keep-alive workflow.

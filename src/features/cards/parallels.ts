@@ -96,3 +96,38 @@ export function parallelSuggestions(list: SetParallel[], spot: Spot, others: str
   const seen = new Set(own.map(norm))
   return [...own, ...others.filter((name) => !seen.has(norm(name)))]
 }
+
+export type ParallelOption = {
+  parallel: string
+  print_run: number | null
+  /** "Gold Refractor /50", "SuperFractor 1/1". */
+  label: string
+  /** The parallel typed, or (with none typed) one numbered to the print run typed. */
+  state: 'selected' | 'suggested' | null
+}
+
+/** The picker under Parallel: the set and insert's rainbow, marking what fits what's typed. */
+export function parallelOptions(
+  list: SetParallel[],
+  values: Spot & { parallel: string; print_run: string },
+): ParallelOption[] {
+  const run = parseRun(values.print_run)
+  const typed = norm(values.parallel)
+  return parallelsFor(list, values).map((p) => ({
+    parallel: p.parallel,
+    print_run: p.print_run,
+    label: p.print_run == null ? p.parallel : p.print_run === 1 ? `${p.parallel} 1/1` : `${p.parallel} /${p.print_run}`,
+    state: typed
+      ? norm(p.parallel) === typed
+        ? 'selected'
+        : null
+      : run != null && p.print_run === run
+        ? 'suggested'
+        : null,
+  }))
+}
+
+/** The first `limit` options, plus any marked one further down, so a long rainbow stays short. */
+export function firstOptions(options: ParallelOption[], limit: number): ParallelOption[] {
+  return options.filter((o, i) => i < limit || o.state != null)
+}

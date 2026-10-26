@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { PageHeader } from '../../components/PageHeader'
 import { NO_CARDS, useAddQuantity, useCards, useCreateCard } from '../../hooks/useCards'
+import { NO_KNOWN_SETS, useKnownSets } from '../../hooks/useKnownSets'
 import { useAiApproval } from '../ai/useAiApproval'
 import { useParallelLookup } from '../sets/useParallelLookup'
 import { useSetHelp } from '../sets/useSetHelp'
@@ -21,6 +22,9 @@ export function NewCardPage() {
   const addQuantity = useAddQuantity()
   const navigate = useNavigate()
   const suggestions = useMemo(() => buildSuggestions(cards), [cards])
+  // Sets on the Sets page, so the voice box knows a set before any card from it is saved.
+  const { data: known = NO_KNOWN_SETS } = useKnownSets()
+  const knownSets = useMemo(() => known.map((s) => s.set_name), [known])
   const initialValues = useMemo(() => ({ ...emptyCardForm, sport: getLastSport() }), [])
 
   async function handleSubmit(
@@ -44,6 +48,7 @@ export function NewCardPage() {
         duplicates={{ cards, askOnSave: true }}
         autofillFrom={cards}
         setHelp={setHelp}
+        knownSets={knownSets}
         lookUpParallels={parallelLookup}
         onSubmit={handleSubmit}
       />

@@ -1,5 +1,6 @@
 import type { Session } from '@supabase/supabase-js'
 import type { Card, CardScan } from '../types/card'
+import type { ChecklistEntry } from '../hooks/useChecklist'
 import type { ParallelRow } from '../hooks/useSetParallels'
 
 /**
@@ -127,4 +128,35 @@ export const demoParallels: ParallelRow[] = [
     ['Gold Refractor', 50],
     ['Red Refractor', 5],
   ]).map((p, i) => (i === 2 ? { ...p, source: 'collection' } : p)),
+]
+
+const spot = (
+  year: string,
+  set_name: string,
+  insert_name: string,
+  card_number: string,
+  player: string,
+  is_rookie = false,
+): ChecklistEntry => ({
+  id: `${year}-${set_name}-${insert_name}-${card_number}`,
+  year,
+  set_name,
+  insert_name,
+  card_number,
+  player,
+  team: null,
+  sport: null,
+  is_rookie,
+  source: 'cardpedia',
+})
+
+/** Sample checklist spots (made up), so Card # fill-in and voice entry can be checked in demo mode. */
+export const demoChecklist: ChecklistEntry[] = [
+  spot('2011', 'Bowman Chrome Draft', '', '1', 'Gerrit Cole', true),
+  spot('2011', 'Bowman Chrome Draft', '', '2', 'Danny Hultzen', true),
+  spot('2011', 'Bowman Chrome Draft', '', '38', 'Francisco Lindor', true),
+  spot('2011', 'Bowman Chrome Draft', 'Prospect Autographs', 'BCAP-FL', 'Francisco Lindor'),
+  spot('2011', 'Bowman Chrome Draft', 'Prospect Autographs', 'BCAP-JB', 'Javier Báez'),
+  spot('2023', 'Topps Finest', '', '12', 'Shohei Ohtani'),
+  spot('2023', 'Topps Finest', '', '50', 'Julio Rodríguez'),
 ]

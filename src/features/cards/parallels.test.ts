@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { hasParallelList, matchParallel, parallelsFor, parallelSuggestions, type SetParallel } from './parallels'
+import {
+  firstOptions,
+  hasParallelList,
+  matchParallel,
+  parallelOptions,
+  parallelsFor,
+  parallelSuggestions,
+  type SetParallel,
+} from './parallels'
 
 const p = (parallel: string, print_run: number | null, overrides: Partial<SetParallel> = {}): SetParallel => ({
   year: '2011',
@@ -89,6 +97,44 @@ describe('parallelSuggestions', () => {
       'Refractor',
       'Blue Refractor',
       'Silver',
+    ])
+  })
+})
+
+describe('parallelOptions', () => {
+  it('lists the set and insert’s rainbow with print runs', () => {
+    expect(parallelOptions(rainbow, typed).map((o) => o.label)).toEqual([
+      'Refractor',
+      'Blue Refractor /199',
+      'Gold Refractor /50',
+      'Red Refractor /5',
+      'Printing Plate Black 1/1',
+      'Superfractor 1/1',
+    ])
+    expect(parallelOptions(rainbow, { ...typed, insert_name: 'Prospect Autographs' }).map((o) => o.label)).toEqual([
+      'Red Refractor Auto /5',
+    ])
+  })
+
+  it('suggests the parallels of a typed print run, and marks a typed parallel', () => {
+    const marked = (values: typeof typed) =>
+      parallelOptions(rainbow, values)
+        .filter((o) => o.state)
+        .map((o) => [o.parallel, o.state])
+    expect(marked({ ...typed, print_run: '1' })).toEqual([
+      ['Printing Plate Black', 'suggested'],
+      ['Superfractor', 'suggested'],
+    ])
+    expect(marked({ ...typed, parallel: 'gold refractor', print_run: '1' })).toEqual([['Gold Refractor', 'selected']])
+  })
+
+  it('keeps a long rainbow short without hiding what’s marked', () => {
+    const options = parallelOptions(rainbow, { ...typed, print_run: '1' })
+    expect(firstOptions(options, 2).map((o) => o.parallel)).toEqual([
+      'Refractor',
+      'Blue Refractor',
+      'Printing Plate Black',
+      'Superfractor',
     ])
   })
 })

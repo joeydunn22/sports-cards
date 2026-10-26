@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { IS_DEMO } from '../dev/demo'
+import { demoChecklist, IS_DEMO } from '../dev/demo'
 import { supabase } from '../lib/supabase'
 import { setKey, setReady, type SetRef } from '../features/sets/setIndex'
 import { KNOWN_SETS_KEY } from './useKnownSets'
@@ -31,7 +31,7 @@ const PAGE_SIZE = 1000
 const checklistQuery = (set: SetRef) => ({
   queryKey: [...CHECKLIST_KEY, setKey(set)],
   queryFn: async (): Promise<ChecklistEntry[]> => {
-    if (IS_DEMO) return NO_ENTRIES
+    if (IS_DEMO) return demoChecklist.filter((e) => setKey(e) === setKey(set))
     const all: ChecklistEntry[] = []
     for (let from = 0; ; from += PAGE_SIZE) {
       const { data, error } = await supabase

@@ -946,7 +946,7 @@ async function importSet(
       const error = page ? `Baseball Cardpedia has no page called “${page}”.` : null
       result = { ...base, status: 'not_found', error }
     } else {
-      const parsed = parseSetPage(found.html, match.variant)
+      const parsed = parseSetPage(found.html, match.variant, found.title.replace(/^\S+ /, ''))
       const theirs = inserts.get(setKey(set)) ?? []
       const source_url = CARDPEDIA_PAGE + encodeURIComponent(found.title.replace(/ /g, '_'))
       const tagged = { source: 'cardpedia', source_url }

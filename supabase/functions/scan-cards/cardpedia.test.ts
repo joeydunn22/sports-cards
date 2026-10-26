@@ -219,6 +219,64 @@ describe('parseSetPage', () => {
     )
     expect(optic.parallels).toEqual([{ insert_name: 'Rated Rookies', parallel: 'Holo', print_run: 150 }])
   })
+
+  it('reads an older Bowman Chrome table: footnotes, "Base Set" rows, noted headings, combined subsets', () => {
+    const chrome = parseSetPage(
+      [
+        h(1, 'Insertion Ratios'),
+        ratio([
+          ['Base', '220', '-'],
+          ['Prospects', '111', '-'],
+          ['Base Set Refractor', '220', '-'],
+          ['Prospect Refractor', '111', '500'],
+          ['Red Refractor*', '331', '5'],
+          ['Chrome Prospects', '111', '-'],
+          ['Chrome Prospects Gold Refractor', '111', '50'],
+          ['Chrome Topps 100 Prospects', '100', '999'],
+          ['Chrome Topps 100 Prospects Refractor', '100', '499'],
+          ['Autographed Rookies & Prospects', '39', '-'],
+          ['Autographed Rookies & Prospects Red Refractor', '39', '5'],
+        ]),
+        h(1, 'Checklist'),
+        h(2, 'Base Set'),
+        h(3, 'Veterans (Reds)'),
+        list(['38 Tyler Colvin']),
+        h(3, 'Bowman Chrome Prospects (Blues)'),
+        list(['BCP111 Bryce Harper']),
+        h(2, 'Inserts'),
+        h(3, 'Topps 100 Prospects'),
+        list(['TPC1 Stephen Strasburg']),
+        h(2, 'Autographs'),
+        h(3, 'Autographed Rookies'),
+        list(['BCP200 Rookie One']),
+        h(3, 'Autographed Prospects'),
+        list(['BCP111 Bryce Harper']),
+      ].join(''),
+      null,
+      'Bowman Chrome',
+    )
+    const of = (insert: string) =>
+      chrome.parallels.filter((p) => p.insert_name === insert).map((p) => [p.parallel, p.print_run])
+    expect(of('')).toEqual([
+      ['Refractor', null],
+      ['Red Refractor', 5],
+    ])
+    expect(of('Prospects')).toEqual([
+      ['Refractor', 500],
+      ['Red Refractor', 5],
+    ])
+    expect(of('Chrome Prospects')).toEqual([['Gold Refractor', 50]])
+    expect(of('Chrome Topps 100 Prospects')).toEqual([['Refractor', 499]])
+    expect(of('Autographed Rookies')).toEqual([['Red Refractor', 5]])
+    expect(of('Autographed Prospects')).toEqual([['Red Refractor', 5]])
+    expect(chrome.cards.map((c) => [c.insert_name, c.card_number])).toEqual([
+      ['', '38'],
+      ['Prospects', 'BCP111'],
+      ['Topps 100 Prospects', 'TPC1'],
+      ['Autographed Rookies', 'BCP200'],
+      ['Autographed Prospects', 'BCP111'],
+    ])
+  })
 })
 
 describe('withCollectorInserts', () => {

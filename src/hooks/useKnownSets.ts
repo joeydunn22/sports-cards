@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { demoParallels, IS_DEMO } from '../dev/demo'
+import { demoChecklist, demoParallels, IS_DEMO } from '../dev/demo'
 import { supabase } from '../lib/supabase'
 import { setKey, type SetRef } from '../features/sets/setIndex'
 
@@ -14,6 +14,11 @@ function demoSets(): KnownSet[] {
     const set = sets.get(setKey(p)) ?? { ...p, set_key: setKey(p), parallels: 0, cards: 0, has_list: false }
     set.parallels++
     set.has_list ||= p.source !== 'collection'
+    sets.set(set.set_key, set)
+  }
+  for (const e of demoChecklist) {
+    const set = sets.get(setKey(e)) ?? { ...e, set_key: setKey(e), parallels: 0, cards: 0, has_list: false }
+    set.cards++
     sets.set(set.set_key, set)
   }
   return [...sets.values()]

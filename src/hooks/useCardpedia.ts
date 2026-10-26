@@ -78,7 +78,8 @@ export function useImportFromCardpedia() {
 
 /**
  * For the card form: looks a baseball set up on Cardpedia the first time it's entered, so its parallels
- * and checklist can fill the form. Resolves with the result, or null when it was looked for before.
+ * and checklist can fill the form. Resolves with the result, or null when it was looked for before; a
+ * call that fails (offline, say) resolves as `failed` without being recorded, so it is tried again.
  */
 export function useEnsureCardpedia() {
   const queryClient = useQueryClient()
@@ -96,10 +97,18 @@ export function useEnsureCardpedia() {
               ? null
               : runImports(queryClient, [set], false).then((results) => results[0] ?? null),
           )
-          // A failure (offline, say) shouldn't block the form; it's tried again next time the set comes up.
-          .catch(() => {
+          // A failure (offline, say) shouldn't block the form, but it says so; it's tried again next time.
+          .catch((err: unknown): ImportResult => {
             running.current.delete(key)
-            return null
+            return {
+              year: set.year,
+              set_name: set.set_name,
+              status: 'failed',
+              page: null,
+              parallels: 0,
+              cards: 0,
+              error: err instanceof Error ? err.message : 'no connection',
+            }
           })
         running.current.set(key, found)
       }

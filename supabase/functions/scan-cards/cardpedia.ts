@@ -166,6 +166,8 @@ function after(name: string, head: string): string | null {
   // The table often drops a heading's leading year: "Summer Camp" for "2020 Summer Camp".
   const heads = [stem(head), stem(head.replace(/^\d{4} /, ''))]
   for (let i = 1; i < parts.length; i++) {
+    // "Autographed Rookies & Prospects" is another subset, not "& Prospects" of Autographed Rookies.
+    if (/^(&|and)$/i.test(parts[i]) || /^(&|and)$/i.test(parts[i - 1])) continue
     if (heads.includes(stem(parts.slice(0, i).join(' ')))) return parts.slice(i).join(' ')
   }
   return null
@@ -185,7 +187,12 @@ const VERSION = /^(chrome|foil|foilboard|mini|s?sp|relics?|autographs?|autograph
 /** Base-set tiers in front of a parallel: "Common Refractor" and "Uncommon Refractor" are both the Refractor. */
 const TIER = /^(common|uncommon|rare|epic|tier [ivx\d]+) (.+)$/i
 
-type Head = { name: string; base: boolean }
+/**
+ * A subset: a checklist heading, or a row of the odds table that starts one. `parts` are the checklist
+ * subsets a combined row stands for ("Autographed Rookies & Prospects" is Autographed Rookies and
+ * Autographed Prospects), so its parallels go to each.
+ */
+type Head = { name: string; base: boolean; parts?: string[] }
 
 /** A card number with letters ("BCP-151") rather than a plain base number ("151"). */
 const prefixed = (cardNumber: string) => /[a-z]/i.test(cardNumber)
@@ -235,8 +242,14 @@ function parseParallels(rows: string[][], heads: Head[], variant: string | null)
     else found.set(id, { insert_name: insert, parallel, print_run: run, runs: new Set([run]) })
   }
 
+  /** A row that names a subset of its own, which may combine two checklist subsets. */
+  const startSubset = (name: string) => known.push({ name, base: false, parts: combined(name, heads) })
+
   for (const row of rows) {
     let [name = '', count = '', numbered = ''] = row
+    // Footnote marks ("Red Refractor*"), and "Base Set Refractor" for the base set's Refractor.
+    name = name.replace(/[*†‡]+/g, ' ').replace(/\s+/g, ' ').trim()
+    if (/^base( set)? \S/i.test(name) && !SPLIT.test(name)) name = name.replace(/^base( set)? /i, '')
     if (!name || /^cards?$/i.test(name)) continue
     if (variant) {
       // Only the variant's rows: "Chrome Red Refractor" is the Red Refractor of the Chrome set.
@@ -275,16 +288,25 @@ function parseParallels(rows: string[][], heads: Head[], variant: string | null)
     if (front) {
       const rest = after(name, front.name)!
       if (VERSION.test(rest)) known.push({ name, base: false })
-      else add(front.name, rest, run)
+      else for (const insert of front.parts ?? [front.name]) add(insert, rest, run)
+      continue
+    }
+    // "Chrome Prospects" is the Chrome version of the base set's Prospects, with parallels of its own.
+    if (byLength.some((h) => h.base && VERSION.test(before(name, h.name) ?? ''))) {
+      startSubset(name)
       continue
     }
     const back = byLength.find((h) => !h.base && before(name, h.name))
     if (back) {
-      add(back.name, before(name, back.name)!, run)
+      const rest = before(name, back.name)!
+      // "Chrome Topps 100 Prospects" is the Chrome version of that insert, a subset with parallels of its own.
+      if (VERSION.test(rest)) startSubset(name)
+      else add(back.name, rest, run)
       continue
     }
-    // A subset named inside the row: "Speckle Prospect Refractors" for Prospects.
-    const inner = byLength.find((hd) => hd.base && innerWord(hd.name).test(name))
+    // A subset named inside the row: "Speckle Prospect Refractors" for Prospects. Not when what comes
+    // before it names another product ("Chrome Topps 100 Prospects", "Autographed Chrome Prospects").
+    const inner = byLength.find((hd) => hd.base && innerWord(hd.name).test(name) && plainLead(name, hd.name))
     if (inner) {
       add(inner.name, name.replace(innerWord(inner.name), ' '), run)
       continue
@@ -296,7 +318,7 @@ function parseParallels(rows: string[][], heads: Head[], variant: string | null)
       // A parallel of more cards than the base has also covers the base set's own subsets (Prospects).
       if (size > baseTotal) for (const h of heads) if (h.base) add(h.name, name, run)
     } else {
-      known.push({ name, base: false })
+      startSubset(name)
     }
   }
 
@@ -304,6 +326,35 @@ function parseParallels(rows: string[][], heads: Head[], variant: string | null)
   if (variant && !sawVariant) return []
   // Tiers can number one parallel differently (Common Gold /50, Uncommon Gold /25): leave those blank.
   return [...found.values()].map(({ runs, ...p }) => ({ ...p, print_run: runs.size === 1 ? p.print_run : null }))
+}
+
+/**
+ * The checklist subsets an odds row like "Autographed Rookies & Prospects" stands for: "Autographed
+ * Rookies" and "Autographed Prospects", when the checklist has both. Undefined otherwise.
+ */
+function combined(name: string, heads: Head[]): string[] | undefined {
+  const m = /^(.+?) (?:&|and) (.+)$/i.exec(name)
+  if (!m) return undefined
+  const left = m[1].split(' ')
+  const options = [m[1], [...left.slice(0, -1), m[2]].join(' ')]
+  const parts = options.map((o) => heads.find((h) => stem(h.name) === stem(o))?.name)
+  return parts.every(Boolean) ? (parts as string[]) : undefined
+}
+
+/**
+ * A checklist heading as a subset's name: without a note in brackets ("Prospects (Blues)") or the set's
+ * own name in front ("Bowman Chrome Prospects" on the Bowman Chrome page).
+ */
+function subsetName(heading: string, setName: string | null): string {
+  const name = heading.replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, ' ').trim() || heading
+  const own = setName && name.toLowerCase().startsWith(`${setName.toLowerCase()} `) ? name.slice(setName.length + 1) : name
+  return own.trim() || name
+}
+
+/** The words before a subset's name inside a row are a short color or finish ("Speckle"), not a product. */
+function plainLead(name: string, head: string): boolean {
+  const lead = name.slice(0, name.search(innerWord(head))).trim().split(' ').filter(Boolean)
+  return lead.length <= 2 && lead.every((w) => !/\d/.test(w) && !VERSION.test(w))
 }
 
 /** A one-word subset's name as a word inside an odds row, singular or plural ("Prospect", "Prospects"). */
@@ -364,10 +415,16 @@ function parseCards(checklist: { block: Block; path: string[] }[], parallels: Pa
   return [...cards.values()]
 }
 
-/** Everything the page says about the set. A variant's checklist isn't on the page, so only its parallels. */
-export function parseSetPage(html: string, variant: string | null = null): ParsedSet {
+/**
+ * Everything the page says about the set. A variant's checklist isn't on the page, so only its parallels.
+ * `setName` is the page's set without the year ("Bowman Chrome"), so headings can drop it.
+ */
+export function parseSetPage(html: string, variant: string | null = null, setName: string | null = null): ParsedSet {
   const all = blocks(html)
-  const checklist = section(all, 'Checklist')
+  const checklist = section(all, 'Checklist').map(({ block, path }) => ({
+    block,
+    path: path.map((p) => subsetName(p, setName)),
+  }))
   const heads = checklistHeads(checklist)
   const rows = section(all, 'Insertion Ratios').flatMap(({ block }) => (block.kind === 'ratio' ? block.rows : []))
   const parallels = parseParallels(rows, heads, variant)
