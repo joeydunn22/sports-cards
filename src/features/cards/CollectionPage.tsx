@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { inputClass } from '../../components/Field'
 import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
+import { VersionTag } from '../../components/VersionTag'
 import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
 import { NO_CARDS, useCards } from '../../hooks/useCards'
 import { useSessionState } from '../../hooks/useSessionState'
@@ -28,10 +29,13 @@ export function CollectionPage() {
   const activeFilters = countActiveFilters(filters)
   const currentSort = sortKey(sorting)
 
-  const addButton = (
-    <Link to="/cards/new" className={`${buttonPrimary} max-md:hidden`}>
-      <Icon name="plus" size={18} /> Add card
-    </Link>
+  const headerActions = (
+    <div className="flex items-center gap-3">
+      <VersionTag />
+      <Link to="/cards/new" className={`${buttonPrimary} max-md:hidden`}>
+        <Icon name="plus" size={18} /> Add card
+      </Link>
+    </div>
   )
 
   if (isPending) return <CollectionSkeleton />
@@ -45,7 +49,7 @@ export function CollectionPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 md:pt-6">
-      <PageHeader title="Collection" actions={addButton} />
+      <PageHeader title="Collection" actions={headerActions} />
 
       <section className="mb-5 grid grid-cols-3 gap-2" aria-label="Summary">
         <Stat label={summary.totalCards === 1 ? 'Card' : 'Cards'} value={summary.totalCards.toLocaleString()} />

@@ -11,3 +11,10 @@ export function formatMoney(amount: number | null, { whole = false } = {}): stri
   if (amount == null) return ''
   return (whole ? usdWhole : usd).format(amount)
 }
+
+const buildDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+
+/** "Oct 25 · 3d43676": the day a build was made, then its commit. */
+export function formatBuild(build: { id: string; time: string }): string {
+  return `${buildDate.format(new Date(build.time))} · ${build.id}`
+}

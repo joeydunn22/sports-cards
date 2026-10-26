@@ -21,6 +21,7 @@ const PATHS = {
   mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3ZM5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7',
   stop: 'M7 7h10v10H7z',
   edit: 'M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4',
+  refresh: 'M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5',
 } as const
 
 export type IconName = keyof typeof PATHS

@@ -1,15 +1,42 @@
 /// <reference types="vitest/config" />
+import { execSync } from 'node:child_process'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+
+/** Which build this is: the commit it was built from, and when. Shown on the Collection screen. */
+function commitId(): string {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim()
+  } catch {
+    return 'dev'
+  }
+}
+const build = { id: commitId(), time: new Date().toISOString() }
+
+/**
+ * Writes version.json next to the app. The app fetches it past the service worker (json isn't precached)
+ * to tell whether a newer deploy is live than the one it's running.
+ */
+function versionFile(): Plugin {
+  return {
+    name: 'version-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify(build) })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/sports-cards/',
+  define: { __BUILD__: JSON.stringify(build) },
   plugins: [
     react(),
     tailwindcss(),
+    versionFile(),
     VitePWA({
       // New deploys activate on the next app launch; no "update available" prompt needed.
       registerType: 'autoUpdate',
