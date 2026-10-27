@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { demoScans, IS_DEMO } from '../dev/demo'
-import { photoPath, thumbPath, type CardCrop } from '../lib/photos'
+import { photoPath, photosDone, thumbPath, type CardCrop } from '../lib/photos'
 import { supabase } from '../lib/supabase'
 import type { Card, CardInput, CardScan } from '../types/card'
 import { AI_USAGE_KEY } from './useAiSpend'
@@ -107,8 +107,8 @@ export function useCreateScans() {
       const userId = await currentUserId()
       for (const [index, item] of items.entries()) {
         const id = crypto.randomUUID()
-        const front = photoPath(userId, id, 'front', item.front.photo.ext, item.front.flat)
-        const back = item.back ? photoPath(userId, id, 'back', item.back.photo.ext, item.back.flat) : null
+        const front = photoPath(userId, id, 'front', item.front.photo.ext, item.front.flat, item.front.auto)
+        const back = item.back ? photoPath(userId, id, 'back', item.back.photo.ext, item.back.flat, item.back.auto) : null
         await uploadPhoto(front, item.front.photo)
         await uploadPhoto(thumbPath(front), item.front.thumb)
         if (item.back && back) {
@@ -141,6 +141,12 @@ export function useDeleteScan() {
   })
 }
 
+/** A scan's photos for its card; photos touched up when they were taken mark the card's photos checked. */
+function scanPhotos({ front_image_path, back_image_path }: CardScan) {
+  const photos_checked_at = photosDone(front_image_path, back_image_path) ? new Date().toISOString() : null
+  return { front_image_path, back_image_path, photos_checked_at }
+}
+
 /**
  * The scanned card is another copy of one already in the collection: add to that card's quantity.
  * Its photos move to that card if it has none yet; otherwise they're removed with the scan.
@@ -154,7 +160,7 @@ export function useMergeScan() {
         .from('cards')
         .update({
           quantity: card.quantity + quantity,
-          ...(adoptPhotos ? { front_image_path: scan.front_image_path, back_image_path: scan.back_image_path } : {}),
+          ...(adoptPhotos ? scanPhotos(scan) : {}),
         })
         .eq('id', card.id)
         .select()
@@ -179,7 +185,7 @@ export function useConfirmScan() {
     mutationFn: async ({ scan, input }: { scan: CardScan; input: CardInput }) => {
       const { data: card, error } = await supabase
         .from('cards')
-        .insert({ ...input, front_image_path: scan.front_image_path, back_image_path: scan.back_image_path })
+        .insert({ ...input, ...scanPhotos(scan) })
         .select()
         .single()
       if (error) throw error

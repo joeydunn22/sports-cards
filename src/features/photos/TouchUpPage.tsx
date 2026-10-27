@@ -119,7 +119,7 @@ export function TouchUpPage() {
           <p className="text-sm text-slate-400">
             {checked > 0 &&
               `${checked} ${checked === 1 ? 'card' : 'cards'} checked this time, ${improved} ${improved === 1 ? 'photo' : 'photos'} improved. `}
-            New cards show up here once they’re saved from the inbox.
+            New cards are touched up as they’re photographed, so they never need this page.
           </p>
           <Link to="/more" className={buttonSecondary}>
             Done

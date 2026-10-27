@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { Icon } from '../../components/Icon'
 import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
 import { useCreateScans, useReadScans, type ScanUpload } from '../../hooks/useScans'
+import { TOUCH_UP_PARALLEL } from '../../lib/backgroundTouchUp'
 import { cropCard, loadImage, type CardCrop } from '../../lib/photos'
 import { readRequest } from '../ai/requests'
 import { useAiApproval } from '../ai/useAiApproval'
@@ -70,7 +71,7 @@ export function CapturePage() {
   }
 
   async function upload() {
-    // Progress: the first half is cutting cards out, the second half is uploading them.
+    // Progress: the first half is cutting cards out and touching them up, the second half is uploading them.
     const items =
       crops.current ??
       (await cropAll(frontSpots, backs.length ? backSpots : [], order, (done, total) =>
@@ -275,7 +276,7 @@ export function CapturePage() {
               className={`${buttonPrimary} min-h-12 flex-[2]`}
             >
               {progress && !createScans.isError
-                ? `Uploading… ${Math.round((progress.done / progress.total) * 100)}%`
+                ? `${progress.done < progress.total / 2 ? 'Fixing photos' : 'Uploading'}… ${Math.round((progress.done / progress.total) * 100)}%`
                 : `Upload ${frontSpots.length} ${frontSpots.length === 1 ? 'card' : 'cards'}`}
             </button>
           </ActionBar>
@@ -289,7 +290,10 @@ function SpotPreview({ spot }: { spot: CardSpot }) {
   return <CropPreview url={spot.photo.url} box={spot.box} width={spot.photo.width} height={spot.photo.height} />
 }
 
-/** Cuts every card out of the full-size photos, decoding each photo only once. */
+/**
+ * Cuts every card out of the full-size photos and touches each one up, decoding each photo only once and
+ * working on a few cards at a time.
+ */
 async function cropAll(
   fronts: CardSpot[],
   backs: CardSpot[],
@@ -303,9 +307,13 @@ async function cropAll(
   let done = 0
   for (const [photo, spots] of byPhoto) {
     const img = await loadImage(photo.file)
-    for (const spot of spots) {
-      crops.set(spot, await cropCard(img, spot.box))
-      onProgress(++done, all.length)
+    for (let i = 0; i < spots.length; i += TOUCH_UP_PARALLEL) {
+      await Promise.all(
+        spots.slice(i, i + TOUCH_UP_PARALLEL).map(async (spot) => {
+          crops.set(spot, await cropCard(img, spot.box))
+          onProgress(++done, all.length)
+        }),
+      )
     }
   }
   return fronts.map((front, i) => ({

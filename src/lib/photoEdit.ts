@@ -317,8 +317,8 @@ function maskBounds(mask: Uint8Array, width: number, height: number) {
   return x1 < 0 ? null : { x0, y0, x1, y1 }
 }
 
-// Automatic touch-up: the same tools as the editor, applied only when they are clearly safe. Every result
-// still goes through the before/after review on the touch-up page (except straightening at capture).
+// Automatic touch-up: the same tools as the editor, applied only when they are clearly safe. New photos get it
+// at capture with no review; older photos go through the before/after review on the touch-up page.
 
 /** Corner finding works on a small copy; more pixels don't help find four corners. */
 const DETECT_MAX_EDGE = 400

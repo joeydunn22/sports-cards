@@ -1,11 +1,13 @@
+import { touchUpInBackground } from './backgroundTouchUp'
 import { detectCards, padBox, type Box, type Pixels } from './cardDetect'
-import { autoStraighten } from './photoEdit'
 
 /**
  * Photo handling in the browser: decoding camera photos, finding cards in them, and cutting each card
  * out at full resolution. Storage layout: `{user_id}/{photo_id}-{front|back}.{webp|jpg}` in the
  * private `card-photos` bucket, with a `-thumb` copy next to each photo. A `-flat` before the extension
- * marks a photo already straightened to the card, so the automatic touch-up doesn't straighten it again.
+ * marks a photo already straightened to the card, so the automatic touch-up doesn't straighten it again;
+ * `-auto` after it marks a photo that had the whole automatic touch-up when it was taken, so a card saved
+ * with such photos skips the touch-up page.
  */
 
 export const PHOTO_BUCKET = 'card-photos'
@@ -22,13 +24,23 @@ const STRAIGHTEN_MARGIN = 0.08
 
 export type Side = 'front' | 'back'
 
-export function photoPath(userId: string, photoId: string, side: Side, ext: 'webp' | 'jpg', flat = false): string {
-  return `${userId}/${photoId}-${side}${flat ? '-flat' : ''}.${ext}`
+export function photoPath(userId: string, photoId: string, side: Side, ext: 'webp' | 'jpg', flat = false, auto = false): string {
+  return `${userId}/${photoId}-${side}${flat ? '-flat' : ''}${auto ? '-auto' : ''}.${ext}`
 }
 
 /** Was this photo saved already straightened to the card? */
 export function isFlatPhoto(path: string): boolean {
-  return /-flat\.\w+$/.test(path)
+  return /-flat(-auto)?\.\w+$/.test(path)
+}
+
+/** Did this photo have the automatic touch-up (trim, glare, lighting) when it was taken? */
+export function isAutoPhoto(path: string): boolean {
+  return /-auto\.\w+$/.test(path)
+}
+
+/** A card's photos have all been touched up already: it can skip the touch-up page. */
+export function photosDone(front: string | null, back: string | null): boolean {
+  return Boolean(front || back) && [front, back].every((p) => !p || isAutoPhoto(p))
 }
 
 /** `abc/123-front.webp` → `abc/123-front-thumb.webp` */
@@ -82,18 +94,29 @@ async function encode(c: HTMLCanvasElement, quality: number): Promise<EncodedIma
   return { blob: jpeg, ext: 'jpg' }
 }
 
-/** `flat`: straightened to the card (stored with the `-flat` marker). */
-export type CardCrop = { photo: EncodedImage; thumb: EncodedImage; flat: boolean }
+/**
+ * `flat`: straightened to the card (stored with the `-flat` marker). `auto`: had the whole automatic touch-up
+ * when it was taken (`-auto`).
+ */
+export type CardCrop = { photo: EncodedImage; thumb: EncodedImage; flat: boolean; auto?: boolean }
 
 /**
- * Cuts one card out of the full-resolution photo, straightened to the card when its corners are found
- * for sure (otherwise the plain box), and makes the stored photo plus a thumbnail.
+ * Cuts one card out of the full-resolution photo and gives it the whole automatic touch-up: straightened to the
+ * card when its corners are found for sure (otherwise the plain box), glare filled and lighting fixed. Makes the
+ * stored photo plus a thumbnail.
  */
 export async function cropCard(img: HTMLImageElement, box: Box): Promise<CardCrop> {
-  const wide = canvasPixels(cut(img, padBox(box, STRAIGHTEN_MARGIN)))
-  const flat = autoStraighten(wide, PHOTO_MAX_EDGE)
-  if (flat) return finishPhoto(drawPixels(flat), true)
-  return finishPhoto(cut(img, padBox(box, CROP_MARGIN)), false)
+  const wide = await touchUpInBackground(canvasPixels(cut(img, padBox(box, STRAIGHTEN_MARGIN))), {
+    straighten: true,
+    maxEdge: PHOTO_MAX_EDGE,
+  })
+  if (wide.changes.includes('straightened')) return { ...(await finishPhoto(drawPixels(wide.pixels), true)), auto: true }
+  // No card edges found for sure: the plain box, with the glare and lighting fixed on that.
+  const plain = await touchUpInBackground(canvasPixels(cut(img, padBox(box, CROP_MARGIN))), {
+    straighten: false,
+    maxEdge: PHOTO_MAX_EDGE,
+  })
+  return { ...(await finishPhoto(drawPixels(plain.pixels), false)), auto: true }
 }
 
 /** The part of the photo inside a box, at most PHOTO_MAX_EDGE on the long side. */
