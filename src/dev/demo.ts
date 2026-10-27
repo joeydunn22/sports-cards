@@ -1,5 +1,5 @@
 import type { Session } from '@supabase/supabase-js'
-import type { Card, CardScan } from '../types/card'
+import type { Card, CardInput, CardScan } from '../types/card'
 import type { ChecklistEntry } from '../hooks/useChecklist'
 import type { ParallelRow } from '../hooks/useSetParallels'
 
@@ -49,6 +49,20 @@ export const demoCards: Card[] = [
   { ...base, id: 'd5', player: 'Elly De La Cruz', year: '2024', set_name: 'Topps Chrome', card_number: 'USC1', team: 'Reds', insert_name: 'Update Rookie Patch', is_relic: true, is_auto: true, serial_number: 12, print_run: 50 },
   { ...base, id: 'd6', player: 'Julio Rodríguez', year: '2022', set_name: 'Topps Heritage', card_number: '650', team: 'Mariners', is_rookie: true },
 ]
+
+/** A card saved from the inbox in demo mode (nothing is stored). */
+export function demoCard(input: CardInput, scan: CardScan): Card {
+  const now = new Date().toISOString()
+  return {
+    ...base,
+    ...input,
+    id: `demo-${scan.id}`,
+    front_image_path: scan.front_image_path,
+    back_image_path: scan.back_image_path,
+    created_at: now,
+    updated_at: now,
+  } as Card
+}
 
 const usage = { input_tokens: 5200, output_tokens: 900, cache_read_input_tokens: 2400 }
 const scan = (id: string, status: string, extraction: object | null): CardScan => ({

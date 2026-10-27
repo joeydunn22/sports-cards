@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
 import { buttonDanger, buttonSecondary } from '../../components/ui'
@@ -14,12 +14,12 @@ import {
   useScanPolling,
   useScans,
 } from '../../hooks/useScans'
+import { flashSaved, recordSave } from '../../lib/feedback'
 import type { Card, CardScan } from '../../types/card'
 import { CardForm } from '../cards/CardForm'
 import { CardPhotos } from '../cards/CardPhotos'
 import { toCardInput, type CardFormValues } from '../cards/cardSchema'
 import { buildSuggestions, rememberSport } from '../cards/suggestions'
-import { standardTeam } from '../cards/teams'
 import { formatCost } from '../ai/costEstimate'
 import { lookupRequest, readRequest } from '../ai/requests'
 import { useAiApproval } from '../ai/useAiApproval'
@@ -33,13 +33,14 @@ import {
   sortForReview,
   type Extraction,
 } from './extraction'
-import { rememberScanValues, scanFormValues } from './scanDefaults'
+import { rememberScanValues, reviewValues } from './scanDefaults'
 import { useParallelLookup } from '../sets/useParallelLookup'
 import { useSetHelp } from '../sets/useSetHelp'
 
 /** Check one scanned card's details, then save it to the collection. */
 export function ReviewScanPage() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { data: scansData, isPending } = useScans()
   const { data: cardsData } = useCards()
@@ -57,18 +58,15 @@ export function ReviewScanPage() {
   const parallelLookup = useParallelLookup(ai)
   useScanPolling(scans)
 
+  // Opened from the rapid review deck: done here, back to the deck.
+  const fromDeck = searchParams.get('from') === 'deck'
   const index = scans.findIndex((s) => s.id === id)
   const scan = scans[index]
   // After this one, go to the next card in the inbox (or the one before, at the end).
-  const nextId = scans[index + 1]?.id ?? scans[index - 1]?.id
-  const goNext = () => navigate(nextId ? `/scan/${nextId}` : '/scan', { replace: true })
+  const nextId = fromDeck ? undefined : (scans[index + 1]?.id ?? scans[index - 1]?.id)
+  const goNext = () => navigate(fromDeck ? '/scan/review' : nextId ? `/scan/${nextId}` : '/scan', { replace: true })
   // The form only reads these when it mounts; its key changes when the AI result arrives.
-  // The AI's team comes in as the collection spells it ("Reds" is "Cincinnati Reds").
-  const initialValues = useMemo(() => {
-    if (!scan) return null
-    const values = scanFormValues(scan)
-    return { ...values, team: standardTeam(values.team, { ...values, known: suggestions.team }) }
-  }, [scan, suggestions.team])
+  const initialValues = useMemo(() => (scan ? reviewValues(scan, suggestions.team) : null), [scan, suggestions.team])
   const extraction = scan ? asExtraction(scan.extraction) : null
   const read = scan?.status === 'ready' || scan?.status === 'looking_up'
   const notes = read && extraction ? fieldNotes(extraction) : {}
@@ -102,6 +100,8 @@ export function ReviewScanPage() {
     const input = toCardInput(values)
     if (mergeInto) await mergeScan.mutateAsync({ scan: scan!, card: mergeInto, quantity: input.quantity ?? 1 })
     else await confirmScan.mutateAsync({ scan: scan!, input })
+    recordSave()
+    flashSaved()
     rememberScanValues(values)
     rememberSport(input.sport)
     goNext()
@@ -118,8 +118,8 @@ export function ReviewScanPage() {
       <PageHeader
         title="Review card"
         subtitle={`${index + 1} of ${scans.length} in the inbox`}
-        backTo="/scan"
-        backLabel="Inbox"
+        backTo={fromDeck ? '/scan/review' : '/scan'}
+        backLabel={fromDeck ? 'Quick review' : 'Inbox'}
       />
       <CardPhotos front={scan.front_image_path} back={scan.back_image_path} />
       <AiStatus
@@ -142,7 +142,7 @@ export function ReviewScanPage() {
         fieldNotes={notes}
         unnumbered={read && extraction != null && readUnnumbered(extraction)}
         mode="edit"
-        submitLabel={nextId ? 'Save & next' : 'Save card'}
+        submitLabel={fromDeck ? 'Save & back' : nextId ? 'Save & next' : 'Save card'}
         initialValues={initialValues}
         suggestions={suggestions}
         duplicates={{ cards, askOnSave: true }}

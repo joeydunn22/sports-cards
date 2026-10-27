@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import { PageHeader } from '../../components/PageHeader'
 import { NO_CARDS, useAddQuantity, useCards, useCreateCard } from '../../hooks/useCards'
 import { NO_KNOWN_SETS, useKnownSets } from '../../hooks/useKnownSets'
+import { flashSaved, recordSave } from '../../lib/feedback'
 import { useAiApproval } from '../ai/useAiApproval'
 import { useParallelLookup } from '../sets/useParallelLookup'
 import { useSetHelp } from '../sets/useSetHelp'
@@ -34,6 +35,8 @@ export function NewCardPage() {
     const input = toCardInput(values)
     if (mergeInto) await addQuantity.mutateAsync({ card: mergeInto, quantity: input.quantity ?? 1 })
     else await createCard.mutateAsync(input)
+    recordSave()
+    flashSaved()
     rememberSport(input.sport)
     if (!addAnother) navigate('/')
   }

@@ -7,13 +7,34 @@ import { PageHeader } from '../../components/PageHeader'
 import { VersionTag } from '../../components/VersionTag'
 import { buttonPrimary, buttonSecondary } from '../../components/ui'
 import { NO_CARDS, useCards } from '../../hooks/useCards'
+import { useSavedFilters } from '../../hooks/useSavedFilters'
 import { useSessionState } from '../../hooks/useSessionState'
 import { CardList, CardTable } from './CardTable'
-import { countActiveFilters, emptyFilters, filterCards, summarize, type CardFilters } from './collection'
+import {
+  countActiveFilters,
+  emptyFilters,
+  filterCards,
+  groupCards,
+  summarize,
+  type CardFilters,
+  type CardGroup,
+  type GroupBy,
+} from './collection'
 import { FilterPanel } from './FilterPanel'
+import { GroupList } from './GroupList'
+import { QuickFilters } from './QuickFilters'
 import { DEFAULT_SORTING, SORT_OPTIONS, useCardTable } from './useCardTable'
 
 const sortKey = (s: SortingState) => s.map((c) => `${c.id}:${c.desc}`).join(',')
+
+type View = 'cards' | GroupBy
+
+const VIEWS: [View, string, string][] = [
+  ['cards', 'Cards', 'entry'],
+  ['set', 'Sets', 'set'],
+  ['player', 'Players', 'player'],
+  ['team', 'Teams', 'team'],
+]
 
 export function CollectionPage() {
   const { data, isPending, error } = useCards()
@@ -21,8 +42,11 @@ export function CollectionPage() {
   const [filters, setFilters] = useSessionState<CardFilters>('sports-cards:filters', emptyFilters)
   const [sorting, setSorting] = useSessionState<SortingState>('sports-cards:sorting', DEFAULT_SORTING)
   const [showFilters, setShowFilters] = useState(false)
+  const [view, setView] = useSessionState<View>('sports-cards:view', 'cards')
+  const saved = useSavedFilters()
 
   const filtered = useMemo(() => filterCards(cards, filters), [cards, filters])
+  const groups = useMemo(() => (view === 'cards' ? [] : groupCards(filtered, view)), [filtered, view])
   const summary = useMemo(() => summarize(cards), [cards])
   const table = useCardTable(filtered, sorting, setSorting)
   const activeFilters = countActiveFilters(filters)
@@ -45,6 +69,21 @@ export function CollectionPage() {
       </main>
     )
   }
+
+  // A group's row narrows the list to its cards.
+  function openGroup(group: CardGroup) {
+    setFilters({ ...filters, fields: { ...filters.fields, ...group.fields } })
+    setView('cards')
+    window.scrollTo({ top: 0 })
+  }
+  const noun = VIEWS.find(([v]) => v === view)![2]
+  const shownCount = view === 'cards' ? filtered.length : groups.length
+  const countLine =
+    view !== 'cards'
+      ? `${groups.length.toLocaleString()} ${groups.length === 1 ? noun : `${noun}s`}`
+      : filtered.length === cards.length
+        ? `${cards.length} ${cards.length === 1 ? 'entry' : 'entries'}`
+        : `Showing ${filtered.length} of ${cards.length}`
 
   const subtitle = [
     plural(summary.totalCards, 'card'),
@@ -101,17 +140,31 @@ export function CollectionPage() {
 
           {showFilters && (
             <div className="mb-3">
-              <FilterPanel cards={cards} filters={filters} onChange={setFilters} />
+              <FilterPanel cards={cards} filters={filters} onChange={setFilters} saved={saved} />
             </div>
           )}
 
-          <div className="mb-2 flex items-center justify-between gap-3 text-[13px] text-ink-500">
-            <p className="tabular-nums">
-              {filtered.length === cards.length
-                ? `${cards.length} ${cards.length === 1 ? 'entry' : 'entries'}`
-                : `Showing ${filtered.length} of ${cards.length}`}
-            </p>
-            <label className="relative flex items-center md:hidden">
+          <QuickFilters filters={filters} saved={saved.list} onChange={setFilters} />
+
+          <div className="mb-3 grid grid-cols-4 rounded-full bg-ink-900 p-1 ring-1 ring-white/[0.04]" role="group" aria-label="View">
+            {VIEWS.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={view === value}
+                onClick={() => setView(value)}
+                className={`min-h-10 rounded-full text-sm font-medium transition-colors ${
+                  view === value ? 'bg-ink-700 text-ink-50' : 'text-ink-400 active:text-ink-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-2 flex min-h-11 items-center justify-between gap-3 text-[13px] text-ink-500">
+            <p className="tabular-nums">{countLine}</p>
+            <label className={`relative items-center md:hidden ${view === 'cards' ? 'flex' : 'hidden'}`}>
               <span className="sr-only">Sort by</span>
               <select
                 value={currentSort}
@@ -134,7 +187,7 @@ export function CollectionPage() {
             </label>
           </div>
 
-          {filtered.length === 0 ? (
+          {shownCount === 0 ? (
             <div className="px-6 py-14 text-center">
               <p className="text-ink-300">No cards match.</p>
               <button
@@ -145,6 +198,8 @@ export function CollectionPage() {
                 Clear search and filters
               </button>
             </div>
+          ) : view !== 'cards' ? (
+            <GroupList groups={groups} by={view} onPick={openGroup} />
           ) : (
             <>
               <div className="md:hidden">

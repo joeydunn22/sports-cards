@@ -8,17 +8,20 @@ type PageHeaderProps = {
   /** Shows a back chevron linking here. */
   backTo?: string
   backLabel?: string
+  /** Router state for the back link (the card screen's collection order). */
+  backState?: unknown
   actions?: ReactNode
   /** A small line above the title (the card screen puts the team there). */
   eyebrow?: ReactNode
 }
 
-export function PageHeader({ title, subtitle, backTo, backLabel = 'Back', actions, eyebrow }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, backTo, backLabel = 'Back', backState, actions, eyebrow }: PageHeaderProps) {
   return (
     <header className="mb-6 flex flex-col gap-1">
       {backTo && (
         <Link
           to={backTo}
+          state={backState}
           className="-ml-2 flex min-h-11 items-center gap-0.5 self-start pr-2 text-[15px] font-medium text-accent-400 active:text-accent-300"
         >
           <Icon name="back" size={20} />

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Icon } from '../../components/Icon'
+import { ZoomImage } from '../../components/ZoomImage'
 import { usePhotoUrl } from '../../hooks/usePhotos'
 
 /** `cardId` adds an Edit button to each photo (saved cards only; scans in the inbox have none). */
@@ -63,17 +64,22 @@ function Photo({ path, label, editTo, onOpen }: PhotoProps) {
   )
 }
 
-function Lightbox({ path, onClose }: { path: string; onClose: () => void }) {
+/** Full-screen photo: pinch or double-tap to zoom; the close button (or Escape) goes back. */
+export function Lightbox({ path, onClose }: { path: string; onClose: () => void }) {
   const { data: url } = usePhotoUrl(path)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div
       role="dialog"
       aria-modal
       aria-label="Photo"
-      onClick={onClose}
       className="fixed inset-0 z-50 grid place-items-center bg-black/95 p-2 pt-[max(0.5rem,env(safe-area-inset-top))]"
     >
-      {url && <img src={url} alt="" className="max-h-full max-w-full object-contain" />}
+      {url && <ZoomImage src={url} />}
       <button
         type="button"
         onClick={onClose}

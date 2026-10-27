@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { inputClass } from '../../components/Field'
+import { Icon } from '../../components/Icon'
 import { ToggleChip } from '../../components/ToggleChip'
-import { panel, sectionTitle } from '../../components/ui'
+import { buttonSecondary, panel, sectionTitle } from '../../components/ui'
+import type { useSavedFilters } from '../../hooks/useSavedFilters'
 import type { Card } from '../../types/card'
 import {
+  countActiveFilters,
   distinctValues,
   emptyFilters,
   FILTER_FIELDS,
@@ -33,9 +37,10 @@ type FilterPanelProps = {
   cards: Card[]
   filters: CardFilters
   onChange: (filters: CardFilters) => void
+  saved: ReturnType<typeof useSavedFilters>
 }
 
-export function FilterPanel({ cards, filters, onChange }: FilterPanelProps) {
+export function FilterPanel({ cards, filters, onChange, saved }: FilterPanelProps) {
   function setField(field: FilterField, value: string) {
     onChange({ ...filters, fields: { ...filters.fields, [field]: value } })
   }
@@ -103,6 +108,59 @@ export function FilterPanel({ cards, filters, onChange }: FilterPanelProps) {
           Clear filters
         </button>
       </div>
+
+      <SaveFilters filters={filters} saved={saved} />
+    </div>
+  )
+}
+
+/** Name the current filters to keep them as a chip above the list; remove old ones. */
+function SaveFilters({ filters, saved }: { filters: CardFilters; saved: FilterPanelProps['saved'] }) {
+  const [name, setName] = useState('')
+  const anything = countActiveFilters(filters) > 0 || filters.search.trim() !== ''
+  if (!anything && saved.list.length === 0) return null
+  return (
+    <div className="flex flex-col gap-2 border-t border-white/[0.05] pt-4">
+      <p className={sectionTitle}>Saved filters</p>
+      {anything && (
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            saved.save(name, filters)
+            setName('')
+          }}
+        >
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name these filters, e.g. Reds rookies"
+            aria-label="Name for these filters"
+            enterKeyHint="done"
+            className={inputClass}
+          />
+          <button type="submit" disabled={!name.trim()} className={`${buttonSecondary} shrink-0`}>
+            Save
+          </button>
+        </form>
+      )}
+      {saved.list.length > 0 && (
+        <ul className="flex flex-wrap gap-2">
+          {saved.list.map((s) => (
+            <li key={s.name} className="flex items-center rounded-full bg-ink-800 pl-3.5 text-sm text-ink-200">
+              {s.name}
+              <button
+                type="button"
+                onClick={() => saved.remove(s.name)}
+                aria-label={`Remove saved filter ${s.name}`}
+                className="grid size-11 place-items-center text-ink-400 active:text-ink-100"
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { Icon, type IconName } from './Icon'
+import { SavedFlash } from './SavedFlash'
 
 /** Scan and Add sit side by side: they're the two ways cards get in. */
 const TABS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
@@ -51,6 +52,8 @@ export function Layout() {
       <div key={pathname} className={`animate-page-in ${showTabs ? 'pb-32 md:pb-0' : ''}`}>
         <Outlet />
       </div>
+
+      <SavedFlash />
 
       {/* Phone: a floating tab bar */}
       {showTabs && (

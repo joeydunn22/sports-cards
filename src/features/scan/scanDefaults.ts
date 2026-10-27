@@ -1,6 +1,7 @@
 import type { CardScan } from '../../types/card'
 import { emptyCardForm, stickyForm, type CardFormValues } from '../cards/cardSchema'
 import { getLastSport } from '../cards/suggestions'
+import { standardTeam } from '../cards/teams'
 import { asExtraction, extractionToForm } from './extraction'
 
 const LAST_VALUES_KEY = 'sports-cards:last-scan-values'
@@ -15,6 +16,16 @@ export function scanFormValues(scan: CardScan): CardFormValues {
   // While the checklist search runs, the first reading is already worth showing.
   const read = scan.status === 'ready' || scan.status === 'looking_up'
   return extraction && read ? extractionToForm(extraction, base) : base
+}
+
+/**
+ * What a scan saves as when reviewed: the starting values with the AI's team spelled the way the
+ * collection spells it ("Reds" is "Cincinnati Reds"). The review form and the rapid review deck share it,
+ * so saving from either gives the same card.
+ */
+export function reviewValues(scan: CardScan, knownTeams: string[] = []): CardFormValues {
+  const values = scanFormValues(scan)
+  return { ...values, team: standardTeam(values.team, { ...values, known: knownTeams }) }
 }
 
 function carriedOver(): CardFormValues {

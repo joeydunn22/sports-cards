@@ -101,3 +101,47 @@ export function summarize(cards: Card[]): CollectionSummary {
   summary.sets = sets.size
   return summary
 }
+
+export type GroupBy = 'set' | 'player' | 'team'
+
+export type CardGroup = {
+  key: string
+  label: string
+  /** Cards in the group, quantity included. */
+  count: number
+  /** The first card with a photo (else the first card), for the row's thumbnail. */
+  cover: Card
+  /** The filter fields that narrow the list to this group. */
+  fields: Partial<Record<FilterField, string>>
+}
+
+/** Groups (already filtered) cards by set, player or team; biggest groups first, then by name. Cards with no team are left out of the team view. */
+export function groupCards(cards: Card[], by: GroupBy): CardGroup[] {
+  const groups = new Map<string, CardGroup>()
+  for (const card of cards) {
+    const team = card.team?.trim()
+    if (by === 'team' && !team) continue
+    const key = by === 'set' ? setKey(card) : by === 'player' ? nameKey(card.player) : team!.toLowerCase()
+    const group = groups.get(key)
+    if (group) {
+      group.count += card.quantity
+      if (!group.cover.front_image_path && card.front_image_path) group.cover = card
+      continue
+    }
+    groups.set(key, {
+      key,
+      label: by === 'set' ? `${card.year} ${card.set_name}` : by === 'player' ? card.player : team!,
+      count: card.quantity,
+      cover: card,
+      fields:
+        by === 'set'
+          ? { year: card.year, set_name: card.set_name }
+          : by === 'player'
+            ? { player: card.player }
+            : { team: team! },
+    })
+  }
+  return [...groups.values()].sort(
+    (a, b) => b.count - a.count || a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
+  )
+}

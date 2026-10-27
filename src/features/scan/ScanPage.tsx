@@ -125,6 +125,12 @@ export function ScanPage() {
                     <span className="text-sm text-ink-500">{items.length}</span>
                   </div>
                   {hint && <p className="-mt-1 text-xs text-ink-500">{hint}</p>}
+                  {id === 'ready' && (
+                    <Link to="/scan/review" className={`${buttonPrimary} mb-1 min-h-12`}>
+                      <Icon name="cards" size={18} /> Quick review {items.length} ready{' '}
+                      {items.length === 1 ? 'card' : 'cards'}
+                    </Link>
+                  )}
                   <ul className="flex flex-col gap-2">
                     {items.map((scan) => (
                       <li key={scan.id}>

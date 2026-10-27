@@ -14,6 +14,7 @@ import { Field, inputClass } from '../../components/Field'
 import { Icon } from '../../components/Icon'
 import { ToggleChip } from '../../components/ToggleChip'
 import { buttonPrimary, buttonSecondary, panel, sectionTitle } from '../../components/ui'
+import { savedThisSession } from '../../lib/feedback'
 import type { Card } from '../../types/card'
 import { cardFormSchema, stickyForm, toCardInput, type CardFormValues } from './cardSchema'
 import { cardTitle, setNameWarning } from './cardText'
@@ -248,7 +249,9 @@ export function CardForm({
       await onSubmit(formValues, { addAnother, mergeInto })
       if (addAnother) {
         const title = cardTitle(toCardInput(formValues))
-        setStatus({ kind: 'ok', text: mergeInto ? `Added to quantity: ${title}` : `Saved: ${title}` })
+        const count = savedThisSession()
+        const tally = count > 1 ? ` · ${count} this session` : ''
+        setStatus({ kind: 'ok', text: `${mergeInto ? 'Added to quantity' : 'Saved'}: ${title}${tally}` })
         reset(stickyForm(formValues))
         setFilledNote(null)
         setParallelNote(null)
@@ -404,7 +407,10 @@ export function CardForm({
     const fields = [...e.currentTarget.querySelectorAll<HTMLInputElement>('input:not([type=hidden]):not([disabled])')].filter(
       (el) => el.id !== 'quick-entry' && el.offsetParent !== null,
     )
-    fields[fields.indexOf(target as HTMLInputElement) + 1]?.focus()
+    const next = fields[fields.indexOf(target as HTMLInputElement) + 1]
+    // Past the last field the keyboard goes away, so the save buttons are in view.
+    if (next) next.focus()
+    else target.blur()
   }
 
   function textInput(

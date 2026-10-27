@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { demoScans, IS_DEMO } from '../dev/demo'
+import { demoCard, demoScans, IS_DEMO } from '../dev/demo'
 import { photoPath, photosDone, thumbPath, type CardCrop } from '../lib/photos'
 import { supabase } from '../lib/supabase'
 import type { Card, CardInput, CardScan } from '../types/card'
@@ -183,6 +183,8 @@ export function useConfirmScan() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ scan, input }: { scan: CardScan; input: CardInput }) => {
+      // Demo mode: the card joins the list for this visit only.
+      if (IS_DEMO) return demoCard(input, scan)
       const { data: card, error } = await supabase
         .from('cards')
         .insert({ ...input, ...scanPhotos(scan) })

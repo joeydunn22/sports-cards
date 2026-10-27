@@ -5,7 +5,10 @@ import { CardThumb } from './CardThumb'
 import { teamColors } from './teamColors'
 import type { CardTableInstance } from './useCardTable'
 
-/** Desktop: sortable table; click a column header to sort, a row to edit. */
+/** The list's current order, passed to the card screen for next/previous. */
+const orderOf = (table: CardTableInstance) => ({ order: table.getRowModel().rows.map((row) => row.original.id) })
+
+/** Desktop: sortable table; click a column header to sort, a row to open the card. */
 export function CardTable({ table }: { table: CardTableInstance }) {
   const navigate = useNavigate()
   return (
@@ -44,7 +47,7 @@ export function CardTable({ table }: { table: CardTableInstance }) {
             return (
               <tr
                 key={row.id}
-                onClick={() => navigate(`/cards/${row.id}`)}
+                onClick={() => navigate(`/cards/${row.original.id}`, { state: orderOf(table) })}
                 className="cursor-pointer border-t border-white/[0.05] text-ink-200 transition-colors hover:bg-ink-800/60"
               >
                 {row.getAllCells().map((cell, i) => (
@@ -67,6 +70,7 @@ export function CardTable({ table }: { table: CardTableInstance }) {
 
 /** Phone: one tappable row per card, with the team's colour down the left edge. */
 export function CardList({ table }: { table: CardTableInstance }) {
+  const order = orderOf(table)
   return (
     <ul className={listGroup}>
       {table.getRowModel().rows.map(({ original: card }) => {
@@ -74,7 +78,7 @@ export function CardList({ table }: { table: CardTableInstance }) {
         return (
           <li key={card.id} className="relative">
             {colors && <TeamEdge color={colors.onDark} />}
-            <Link to={`/cards/${card.id}`} className="flex min-h-18 items-center gap-3.5 py-3 pr-4 pl-4 active:bg-ink-800">
+            <Link to={`/cards/${card.id}`} state={order} className="flex min-h-18 items-center gap-3.5 py-3 pr-4 pl-4 active:bg-ink-800">
               {card.front_image_path && <CardThumb path={card.front_image_path} className="w-12" />}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[16px] font-semibold tracking-tight text-ink-50">

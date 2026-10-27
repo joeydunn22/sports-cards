@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeCard } from '../../test/makeCard'
-import { distinctValues, emptyFilters, filterCards, summarize } from './collection'
+import { distinctValues, emptyFilters, filterCards, groupCards, summarize } from './collection'
 
 const ohtani = makeCard({ player: 'Shohei Ohtani', team: 'Dodgers', is_rookie: true, estimated_value: 100, quantity: 2 })
 const soto = makeCard({ player: 'Juan Soto', set_name: 'Bowman Chrome', is_auto: true, print_run: 99, purchase_price: 40 })
@@ -53,5 +53,33 @@ describe('summarize', () => {
       players: 3,
       sets: 3,
     })
+  })
+})
+
+describe('groupCards', () => {
+  const a = makeCard({ player: 'Shohei Ohtani', year: '2023', set_name: 'Topps', team: 'Los Angeles Angels' })
+  const b = makeCard({ player: 'Shohei Ohtani', year: '2023', set_name: 'topps', team: 'Los Angeles Angels', front_image_path: 'p/b.webp' })
+  const c = makeCard({ player: 'Mike Trout', year: '2011', set_name: 'Topps Update', team: 'los angeles angels', quantity: 3 })
+  const d = makeCard({ player: 'Juan Soto', year: '2023', set_name: 'Topps', team: null })
+
+  it('groups by set (year + set, any case), biggest first then by name, with a cover photo when one exists', () => {
+    const groups = groupCards([a, b, c, d], 'set')
+    expect(groups.map((g) => [g.label, g.count])).toEqual([
+      ['2011 Topps Update', 3],
+      ['2023 Topps', 3],
+    ])
+    expect(groups[1].cover).toBe(b)
+    expect(groups[1].fields).toEqual({ year: '2023', set_name: 'Topps' })
+  })
+
+  it('groups players by name and leaves teamless cards out of the team view', () => {
+    expect(groupCards([a, b, c, d], 'player').map((g) => [g.label, g.count])).toEqual([
+      ['Mike Trout', 3],
+      ['Shohei Ohtani', 2],
+      ['Juan Soto', 1],
+    ])
+    const teams = groupCards([a, b, c, d], 'team')
+    expect(teams.map((g) => [g.label, g.count])).toEqual([['Los Angeles Angels', 5]])
+    expect(teams[0].fields).toEqual({ team: 'Los Angeles Angels' })
   })
 })

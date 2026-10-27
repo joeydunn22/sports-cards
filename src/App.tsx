@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router'
 import { Layout } from './components/Layout'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { RequireAuth } from './features/auth/RequireAuth'
+import { CardDetailPage } from './features/cards/CardDetailPage'
 import { CollectionPage } from './features/cards/CollectionPage'
 import { EditCardPage } from './features/cards/EditCardPage'
 import { NewCardPage } from './features/cards/NewCardPage'
@@ -10,6 +11,7 @@ import { PhotoEditorPage } from './features/cards/PhotoEditorPage'
 import { MorePage } from './features/more/MorePage'
 import { TouchUpPage } from './features/photos/TouchUpPage'
 import { CapturePage } from './features/scan/CapturePage'
+import { RapidReviewPage } from './features/scan/RapidReviewPage'
 import { ReviewScanPage } from './features/scan/ReviewScanPage'
 import { ScanPage } from './features/scan/ScanPage'
 import { SetDetailPage } from './features/sets/SetDetailPage'
@@ -29,10 +31,12 @@ export default function App() {
               <Route element={<Layout />}>
                 <Route path="/" element={<CollectionPage />} />
                 <Route path="/cards/new" element={<NewCardPage />} />
-                <Route path="/cards/:id" element={<EditCardPage />} />
+                <Route path="/cards/:id" element={<CardDetailPage />} />
+                <Route path="/cards/:id/edit" element={<EditCardPage />} />
                 <Route path="/cards/:id/photo/:side" element={<PhotoEditorPage />} />
                 <Route path="/scan" element={<ScanPage />} />
                 <Route path="/scan/new" element={<CapturePage />} />
+                <Route path="/scan/review" element={<RapidReviewPage />} />
                 <Route path="/scan/:id" element={<ReviewScanPage />} />
                 <Route path="/more" element={<MorePage />} />
                 <Route path="/photos/touch-up" element={<TouchUpPage />} />
