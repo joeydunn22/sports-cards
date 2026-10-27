@@ -2,10 +2,12 @@ import { Link } from 'react-router'
 import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
 import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
+import { NO_CARDS, useCards } from '../../hooks/useCards'
 import { NO_SCANS, useReadScans, useScanPolling, useScans } from '../../hooks/useScans'
 import type { CardScan } from '../../types/card'
 import { CardThumb } from '../cards/CardThumb'
 import { formatCost } from '../ai/costEstimate'
+import { touchUpQueue } from '../photos/useTouchUpBatch'
 import { readRequest } from '../ai/requests'
 import { useAiApproval } from '../ai/useAiApproval'
 import { getAiModel } from './aiModel'
@@ -30,6 +32,8 @@ export function ScanPage() {
   const { data, isPending, error } = useScans()
   const scans = data ?? NO_SCANS
   const readScans = useReadScans()
+  const { data: cards = NO_CARDS } = useCards()
+  const touchUps = touchUpQueue(cards).length
   const ai = useAiApproval()
   useScanPolling(scans)
   const pending = scans.filter((s) => s.status === 'pending').length
@@ -76,6 +80,12 @@ export function ScanPage() {
       )}
       {readScans.isError && (
         <p className="rounded-xl bg-red-950/60 px-3 py-2 text-sm text-red-300">{readScans.error.message}</p>
+      )}
+
+      {touchUps > 0 && (
+        <Link to="/photos/touch-up" className={`${buttonSecondary} min-h-12`}>
+          <Icon name="sparkle" size={18} /> Touch up photos of {touchUps} saved {touchUps === 1 ? 'card' : 'cards'}
+        </Link>
       )}
 
       <section className="flex flex-col gap-2">

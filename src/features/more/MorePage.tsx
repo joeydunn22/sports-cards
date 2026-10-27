@@ -155,8 +155,8 @@ function PhotoTouchUp() {
         <h2 className="text-lg font-semibold">Touch up photos</h2>
         <p className="text-sm text-slate-400">
           {left
-            ? `${left} ${left === 1 ? 'card' : 'cards'} not checked yet. Trims off the background, straightens and fills small glare spots; you pick old or new for each.`
-            : 'All photos checked. Trims off the background, straightens and fills small glare spots.'}
+            ? `${left} ${left === 1 ? 'card' : 'cards'} to go. Crops to the card, fills glare and fixes the lighting; you see before and after.`
+            : 'All photos checked. Crops to the card, fills glare and fixes the lighting.'}
         </p>
       </div>
       <Icon name="back" size={18} className="shrink-0 rotate-180 text-slate-500" />

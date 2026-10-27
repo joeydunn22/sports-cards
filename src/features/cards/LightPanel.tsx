@@ -16,20 +16,13 @@ const SLIDERS: { key: keyof LightAdjust; label: string; min: number; low: string
   { key: 'sharpness', label: 'Sharpness', min: 0, low: '', high: 'Sharper' },
 ]
 
-type LightPanelProps = {
-  pixels: Pixels
-  busy: boolean
-  /** A message from the last Auto (e.g. nothing to fix). */
-  note: string | null
-  onAuto: () => void
-  onApply: (adjust: LightAdjust) => void
-}
+type LightPanelProps = { pixels: Pixels; busy: boolean; onApply: (adjust: LightAdjust) => void }
 
-/** Adjusting by hand: Auto lighting, or brightness, contrast, warmth and sharpness with a live preview, then Apply. */
-export function LightPanel({ pixels, busy, note, onAuto, onApply }: LightPanelProps) {
+/** Adjusting by hand: brightness, contrast, warmth and sharpness with a live preview, then Apply. */
+export function LightPanel({ pixels, busy, onApply }: LightPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const preview = useMemo(() => downscale(pixels, PREVIEW_EDGE), [pixels])
-  // The sliders belong to the photo they were set on; a new photo (after Apply, Auto or Undo) starts at zero.
+  // The sliders belong to the photo they were set on; a new photo (after Apply or Undo) starts at zero.
   const [setting, setSetting] = useState<{ on: Pixels; adjust: LightAdjust } | null>(null)
   const adjust = setting?.on === pixels ? setting.adjust : NO_ADJUST
   const changed = SLIDERS.some(({ key }) => adjust[key] !== 0)
@@ -40,16 +33,13 @@ export function LightPanel({ pixels, busy, note, onAuto, onApply }: LightPanelPr
 
   return (
     <>
-      <div className="p-5">
-        <PhotoFrame pixels={pixels}>
+      {/* Smaller than the other tools, so the sliders fit on screen with the photo they change. */}
+      <div className="py-3">
+        <PhotoFrame pixels={pixels} maxHeight="40dvh">
           <canvas ref={canvasRef} className="block size-full rounded-md" />
         </PhotoFrame>
       </div>
-      {note && <p className="mb-2 text-sm text-slate-400">{note}</p>}
-      <button type="button" disabled={busy} onClick={onAuto} className={`${buttonSecondary} w-full`}>
-        {busy ? 'Working…' : 'Auto: even out the light and colour'}
-      </button>
-      <div className="mt-3 flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         {SLIDERS.map(({ key, label, min, low, high }) => (
           <label key={key} className="flex min-h-11 items-center gap-3 text-sm text-slate-300">
             <span className="w-20 shrink-0">{label}</span>

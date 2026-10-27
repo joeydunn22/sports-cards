@@ -1,40 +1,49 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { Icon } from '../../components/Icon'
 import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
 import { NO_CARDS, useCards, useSaveTouchUps, type PhotoReplacement } from '../../hooks/useCards'
-import type { TouchUpChange } from '../../lib/photoEdit'
+import { CHANGE_LABELS } from '../../lib/photoEdit'
+import type { Card } from '../../types/card'
 import { cardTitle } from '../cards/cardText'
-import { BATCH_SIZE, touchUpQueue, useTouchUpBatch, type CardResult } from './useTouchUpBatch'
+import { BATCH_SIZE, touchUpQueue, useTouchUpBatch, type Batch, type CardResult } from './useTouchUpBatch'
 
 type Pick = 'before' | 'after'
 
-const CHANGE_LABELS: Record<TouchUpChange, string> = {
-  straightened: 'Trimmed & straightened',
-  glare: 'Glare filled',
-  lighting: 'Lighting fixed',
-}
-
-/** Automatic touch-up for the whole collection: a batch at a time, every change reviewed before it's kept. */
+/**
+ * Automatic touch-up for the whole collection: starts on opening, a batch at a time, and every change is reviewed
+ * before it's kept. Batches with nothing to review are saved and passed by themselves.
+ */
 export function TouchUpPage() {
   const navigate = useNavigate()
   const { data, isPending } = useCards()
   const save = useSaveTouchUps()
-  const { batch, progress, run, clear } = useTouchUpBatch()
+  const { batch, progress, load, clear } = useTouchUpBatch()
   const [picks, setPicks] = useState<Record<string, Pick>>({})
   // Cards whose photos couldn't be read this visit, so they don't come round again in every batch.
   const [skipped, setSkipped] = useState<Set<string>>(() => new Set())
+  // This visit's tally, for the progress line and the summary at the end.
+  const [checked, setChecked] = useState(0)
+  const [improved, setImproved] = useState(0)
   const [zoom, setZoom] = useState<string | null>(null)
+  const started = useRef(false)
+  const passedBy = useRef<Batch | null>(null)
 
   const queue = touchUpQueue(data ?? NO_CARDS).filter((c) => !skipped.has(c.id))
+  const total = checked + queue.length
   const pickOf = (cardId: string, side: string): Pick => picks[`${cardId}:${side}`] ?? 'after'
 
-  function stop() {
-    clear()
-    navigate('/more')
-  }
+  /** The next batch from `cards`, with the one after it got ready in the background. */
+  const loadFrom = (cards: Card[]) => load(cards.slice(0, BATCH_SIZE), cards.slice(BATCH_SIZE, 2 * BATCH_SIZE))
 
-  async function saveAndContinue() {
+  // Opening the page is the request: start without a Start button.
+  useEffect(() => {
+    if (isPending || started.current || queue.length === 0) return
+    started.current = true
+    void loadFrom(queue)
+  })
+
+  async function saveBatch() {
     if (!batch) return
     const replacements: PhotoReplacement[] = batch.changed.flatMap(({ card, sides }) =>
       sides.filter((s) => pickOf(card.id, s.side) === 'after').map((s) => ({ card, side: s.side, crop: s.crop })),
@@ -43,26 +52,58 @@ export function TouchUpPage() {
     const checkedIds = batch.cards.filter((c) => !failed.has(c.id)).map((c) => c.id)
     await save.mutateAsync({ replacements, checkedIds })
     setSkipped((s) => new Set([...s, ...failed]))
+    setChecked((n) => n + checkedIds.length)
+    setImproved((n) => n + replacements.length)
     setPicks({})
+  }
+
+  async function saveAndNext() {
+    if (!batch) return
+    await saveBatch()
     const done = new Set(batch.cards.map((c) => c.id))
-    const next = queue.filter((c) => !done.has(c.id)).slice(0, BATCH_SIZE)
-    if (next.length) await run(next)
+    const rest = queue.filter((c) => !done.has(c.id))
+    if (rest.length) void loadFrom(rest)
     else clear()
     window.scrollTo(0, 0)
   }
 
+  async function saveAndStop() {
+    await saveBatch()
+    clear()
+    navigate('/more')
+  }
+
+  // Nothing to choose in this batch (no photo needed a change): save it and move on by itself, once.
+  useEffect(() => {
+    if (!batch || batch.changed.length > 0 || passedBy.current === batch) return
+    passedBy.current = batch
+    saveAndNext().catch(() => {})
+  })
+
+  function close() {
+    if (batch?.changed.length && !window.confirm('Leave without saving this batch? Its cards come up again next time.')) return
+    clear()
+    navigate('/more')
+  }
+
   if (isPending) return <p className="p-6 text-slate-400">Loading…</p>
 
-  if (progress) {
+  const bar = total > 0 && <Progress done={checked + (progress?.done ?? 0)} total={total} />
+
+  if (progress || (batch && batch.changed.length === 0 && !save.isError)) {
+    const at = Math.min(checked + (progress?.done ?? 0) + 1, total)
     return (
-      <Shell onStop={stop}>
-        <section className={`${panel} p-4`}>
-          <p className="font-medium">
-            Touching up card {Math.min(progress.done + 1, progress.total)} of {progress.total}…
+      <Shell onClose={close}>
+        <section className={`${panel} flex flex-col gap-3 p-4`}>
+          <p className="flex items-center gap-2 font-medium">
+            <span className="size-4 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+            Touching up card {at} of {total}…
           </p>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
-            <div className="h-full bg-sky-500 transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
-          </div>
+          {bar}
+          <p className="text-sm text-slate-400">
+            Cropping to the card, filling glare and fixing the lighting, here on your phone at no cost. You’ll see
+            before and after for every change.
+          </p>
         </section>
       </Shell>
     )
@@ -70,33 +111,19 @@ export function TouchUpPage() {
 
   if (!batch) {
     return (
-      <Shell onStop={stop}>
+      <Shell onClose={close}>
         <section className={`${panel} flex flex-col gap-3 p-4`}>
-          {queue.length ? (
-            <>
-              <p>
-                <span className="font-semibold">{queue.length}</span> {queue.length === 1 ? 'card has' : 'cards have'}{' '}
-                photos that haven’t been touched up yet.
-              </p>
-              <p className="text-sm text-slate-400">
-                The background is trimmed off, crooked cards straightened and small glare spots filled, right here on your phone, at no cost. You
-                see the old and new version of every change and pick which to keep; {BATCH_SIZE} cards at a time.
-              </p>
-              <button type="button" onClick={() => run(queue.slice(0, BATCH_SIZE))} className={`${buttonPrimary} min-h-12`}>
-                Start
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="flex items-center gap-2 font-semibold">
-                <Icon name="check" size={20} className="text-emerald-400" /> All photos checked
-              </p>
-              <p className="text-sm text-slate-400">New cards show up here once they’re saved from the inbox.</p>
-              <Link to="/more" className={buttonSecondary}>
-                Back to More
-              </Link>
-            </>
-          )}
+          <p className="flex items-center gap-2 font-semibold">
+            <Icon name="check" size={20} className="text-emerald-400" /> All photos checked
+          </p>
+          <p className="text-sm text-slate-400">
+            {checked > 0 &&
+              `${checked} ${checked === 1 ? 'card' : 'cards'} checked this time, ${improved} ${improved === 1 ? 'photo' : 'photos'} improved. `}
+            New cards show up here once they’re saved from the inbox.
+          </p>
+          <Link to="/more" className={buttonSecondary}>
+            Done
+          </Link>
         </section>
       </Shell>
     )
@@ -105,13 +132,15 @@ export function TouchUpPage() {
   const unchanged = batch.cards.length - batch.changed.length - batch.failed.length
   const left = queue.length - batch.cards.length
   return (
-    <Shell onStop={stop}>
-      <p className="mb-3 text-sm text-slate-400">
-        {batch.changed.length ? 'Tap the version to keep. The new one is picked unless you choose otherwise.' : ''}{' '}
-        {unchanged > 0 && `${unchanged} ${unchanged === 1 ? 'card needed' : 'cards needed'} no changes. `}
-        {batch.failed.length > 0 && `${batch.failed.length} couldn’t be loaded and will be skipped. `}
-        {left > 0 ? `${left} more after this batch.` : 'This is the last batch.'}
-      </p>
+    <Shell onClose={close}>
+      <div className="mb-3 flex flex-col gap-2">
+        {bar}
+        <p className="text-sm text-slate-400">
+          Tap the one to keep. After is kept unless you tap Before.
+          {unchanged > 0 && ` ${unchanged} ${unchanged === 1 ? 'card needed' : 'cards needed'} no changes.`}
+          {batch.failed.length > 0 && ` ${batch.failed.length} couldn’t be loaded and will be skipped.`}
+        </p>
+      </div>
       <ul className="flex flex-col gap-3">
         {batch.changed.map((result) => (
           <ReviewCard
@@ -130,21 +159,41 @@ export function TouchUpPage() {
       )}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-800 bg-slate-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="mx-auto flex max-w-3xl gap-3">
-          <button type="button" onClick={stop} className={`${buttonSecondary} min-h-12 flex-1`}>
-            Stop
-          </button>
+          {left > 0 && (
+            <button
+              type="button"
+              disabled={save.isPending}
+              onClick={() => saveAndStop().catch(() => {})}
+              className={`${buttonSecondary} min-h-12 flex-1`}
+            >
+              Save & stop
+            </button>
+          )}
           <button
             type="button"
             disabled={save.isPending}
-            onClick={() => saveAndContinue().catch(() => {})}
+            onClick={() => saveAndNext().catch(() => {})}
             className={`${buttonPrimary} min-h-12 flex-[2]`}
           >
-            {save.isPending ? 'Saving…' : left > 0 ? 'Save & next batch' : 'Save & finish'}
+            {save.isPending ? 'Saving…' : left > 0 ? 'Save & next' : 'Save & finish'}
           </button>
         </div>
       </div>
       {zoom && <Zoom url={zoom} onClose={() => setZoom(null)} />}
     </Shell>
+  )
+}
+
+function Progress({ done, total }: { done: number; total: number }) {
+  return (
+    <div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+        <div className="h-full bg-sky-500 transition-all" style={{ width: `${(done / total) * 100}%` }} />
+      </div>
+      <p className="mt-1 text-right text-xs text-slate-500 tabular-nums">
+        {done} of {total} cards done
+      </p>
+    </div>
   )
 }
 
@@ -241,12 +290,12 @@ function Zoom({ url, onClose }: { url: string; onClose: () => void }) {
   )
 }
 
-function Shell({ onStop, children }: { onStop: () => void; children: ReactNode }) {
+function Shell({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   return (
     <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] pb-28 md:pt-4">
-      <header className="mb-4 flex items-center justify-between gap-3">
+      <header className="mb-4 flex items-center justify-between gap-3 pt-2">
         <h1 className="text-2xl font-bold tracking-tight">Touch up photos</h1>
-        <button type="button" onClick={onStop} className="min-h-11 px-2 text-sm font-medium text-sky-400">
+        <button type="button" onClick={onClose} className="min-h-11 px-2 text-sm font-medium text-sky-400">
           Close
         </button>
       </header>

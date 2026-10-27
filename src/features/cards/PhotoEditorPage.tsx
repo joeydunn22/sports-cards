@@ -4,6 +4,7 @@ import { Icon } from '../../components/Icon'
 import { buttonPrimary, buttonSecondary } from '../../components/ui'
 import { useCards, useReplaceCardPhoto } from '../../hooks/useCards'
 import { usePhotoImage } from '../../hooks/usePhotos'
+import { touchUpInBackground } from '../../lib/backgroundTouchUp'
 import type { Pixels } from '../../lib/cardDetect'
 import {
   fillGlare,
@@ -14,28 +15,38 @@ import {
   rotateQuarter,
   warpPerspective,
   type Quad,
+  type TouchUpChange,
 } from '../../lib/photoEdit'
-import { adjustLight, autoLight, type LightAdjust } from '../../lib/photoLight'
+import { adjustLight } from '../../lib/photoLight'
 import { drawPixels, finishPhoto, imagePixels, isFlatPhoto, PHOTO_MAX_EDGE, type Side } from '../../lib/photos'
 import type { Card } from '../../types/card'
+import { AutoFixPanel } from './AutoFixPanel'
 import { cardTitle } from './cardText'
 import { CornerEditor } from './CornerEditor'
 import { LightPanel } from './LightPanel'
 import { TouchUpCanvas } from './TouchUpCanvas'
 
-type Mode = 'straighten' | 'touchup' | 'light'
+/** Auto does everything in one tap; the others fix by hand what it didn't get right. */
+type Mode = 'auto' | 'crop' | 'glare' | 'light'
 const MODES: { mode: Mode; label: string }[] = [
-  { mode: 'straighten', label: 'Straighten' },
-  { mode: 'touchup', label: 'Touch up' },
-  { mode: 'light', label: 'Adjust' },
+  { mode: 'auto', label: 'Auto' },
+  { mode: 'crop', label: 'Crop' },
+  { mode: 'glare', label: 'Glare' },
+  { mode: 'light', label: 'Light' },
 ]
 /** Each step keeps a full copy of the photo (about 7 MB), so undo stops after this many. */
 const UNDO_LIMIT = 8
 
-/** `flat`: the photo is straightened to the card (saved with the `-flat` marker). */
-type Step = { pixels: Pixels; quad: Quad; flat: boolean }
+/**
+ * `flat`: the photo is straightened to the card (saved with the `-flat` marker). `changes`: this step is an
+ * Auto fix result, with what it changed ([] when it found nothing to change).
+ */
+type Step = { pixels: Pixels; flat: boolean; changes: TouchUpChange[] | null }
 
 const isFullFrame = (quad: Quad) => quad.every((p, i) => p.x === FULL_FRAME[i].x && p.y === FULL_FRAME[i].y)
+
+/** Starting corners: the card's edges if found; a straightened photo already is the card, so its own corners. */
+const suggestCorners = ({ pixels, flat }: Step): Quad => (flat ? FULL_FRAME : findCardCorners(pixels))
 
 export function PhotoEditorPage() {
   const { id, side } = useParams()
@@ -75,18 +86,21 @@ type PhotoEditorProps = { card: Card; side: Side; path: string; image: HTMLImage
 function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
   const navigate = useNavigate()
   const replace = useReplaceCardPhoto()
-  const original = useMemo<Step>(() => {
-    const pixels = imagePixels(image)
-    return { pixels, quad: findCardCorners(pixels), flat: isFlatPhoto(path) }
-  }, [image, path])
+  const original = useMemo<Step>(() => ({ pixels: imagePixels(image), flat: isFlatPhoto(path), changes: null }), [image, path])
   const [current, setCurrent] = useState<Step>(original)
   const [history, setHistory] = useState<Step[]>([])
-  const [mode, setMode] = useState<Mode>('straighten')
+  const [mode, setMode] = useState<Mode>('auto')
+  // Corners dragged by hand belong to the photo they were set on; a new photo starts from the suggestion.
+  const [corners, setCorners] = useState<{ on: Pixels; quad: Quad } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [note, setNote] = useState<string | null>(null)
   const edited = current.pixels !== original.pixels
   const backTo = `/cards/${card.id}`
+
+  // Only worked out once the Crop tab is open: finding the edges takes a moment.
+  const suggested = useMemo(() => (mode === 'crop' ? suggestCorners(current) : null), [mode, current])
+  const moved = corners?.on === current.pixels
+  const quad = moved ? corners.quad : (suggested ?? FULL_FRAME)
 
   // Warn before a reload or tab close throws away an unsaved edit.
   useEffect(() => {
@@ -96,18 +110,18 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
     return () => window.removeEventListener('beforeunload', warn)
   }, [edited, replace.isSuccess])
 
+  function push(next: Step) {
+    setHistory((h) => [...h, current].slice(-UNDO_LIMIT))
+    setCurrent(next)
+  }
+
   /** Runs a heavy pixel step after the "working" state has painted. */
-  function run(step: () => Step | void) {
+  function run(step: () => Step) {
     setBusy(true)
     setError(null)
-    setNote(null)
     setTimeout(() => {
       try {
-        const next = step()
-        if (next) {
-          setHistory((h) => [...h, current].slice(-UNDO_LIMIT))
-          setCurrent(next)
-        }
+        push(step())
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       } finally {
@@ -116,34 +130,37 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
     }, 30)
   }
 
+  /** Trim and straighten (unless already straight), glare, lighting: the same pass as the automatic touch-up. */
+  async function autoFix() {
+    setBusy(true)
+    setError(null)
+    try {
+      const { pixels, changes } = await touchUpInBackground(current.pixels, {
+        straighten: !current.flat,
+        maxEdge: PHOTO_MAX_EDGE,
+      })
+      push({ pixels, flat: current.flat || changes.includes('straightened'), changes })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function straighten() {
     run(() => {
-      const { pixels, quad } = current
-      const size = outputSize(quad, pixels.width, pixels.height, PHOTO_MAX_EDGE)
-      const flat = warpPerspective(pixels, quad, size.width, size.height)
-      setMode('touchup') // glare is the usual next step
-      return { pixels: flat, quad: FULL_FRAME, flat: true }
+      const size = outputSize(quad, current.pixels.width, current.pixels.height, PHOTO_MAX_EDGE)
+      setMode('auto') // shows the result, with Auto fix for the glare and lighting
+      return { pixels: warpPerspective(current.pixels, quad, size.width, size.height), flat: true, changes: null }
     })
   }
 
   function rotate() {
-    run(() => ({ ...current, pixels: rotateQuarter(current.pixels), quad: rotateQuad(current.quad) }))
-  }
-
-  function fill(mask: Uint8Array) {
-    run(() => ({ ...current, pixels: fillGlare(current.pixels, mask) }))
-  }
-
-  function autoFixLight() {
     run(() => {
-      const lit = autoLight(current.pixels)
-      if (!lit) setNote('The light and colour already look even, so Auto left this photo as it is.')
-      else return { ...current, pixels: lit }
+      const pixels = rotateQuarter(current.pixels)
+      setCorners({ on: pixels, quad: rotateQuad(quad) })
+      return { ...current, pixels, changes: null }
     })
-  }
-
-  function light(adjust: LightAdjust) {
-    run(() => ({ ...current, pixels: adjustLight(current.pixels, adjust) }))
   }
 
   function undo() {
@@ -151,11 +168,6 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
     if (!previous) return
     setHistory((h) => h.slice(0, -1))
     setCurrent(previous)
-  }
-
-  function startOver() {
-    setHistory([])
-    setCurrent(original)
   }
 
   function cancel() {
@@ -178,9 +190,9 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
 
   return (
     <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] pb-28 md:pt-4">
-      <header className="mb-3 flex items-start justify-between gap-3">
+      <header className="mb-3 flex items-start justify-between gap-3 pt-2">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">Edit {side} photo</h1>
+          <h1 className="text-xl font-bold tracking-tight">{side === 'front' ? 'Front' : 'Back'} photo</h1>
           <p className="truncate text-sm text-slate-400">{cardTitle(card)}</p>
         </div>
         <button type="button" onClick={cancel} className="min-h-11 shrink-0 px-2 text-sm font-medium text-sky-400">
@@ -188,15 +200,16 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
         </button>
       </header>
 
-      <div className="grid grid-cols-3 gap-2 text-center text-sm font-medium" role="tablist">
+      <div className="grid grid-cols-4 gap-1 rounded-full bg-slate-900 p-1 text-center text-sm font-medium" role="tablist">
         {MODES.map(({ mode: m, label }) => (
           <button
             key={m}
             type="button"
             role="tab"
             aria-selected={mode === m}
+            disabled={busy}
             onClick={() => setMode(m)}
-            className={`min-h-11 rounded-full ${mode === m ? 'bg-sky-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}
+            className={`min-h-10 rounded-full ${mode === m ? 'bg-sky-500 text-slate-950' : 'text-slate-400'}`}
           >
             {label}
           </button>
@@ -205,31 +218,24 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
 
       {error && <p className="mt-3 rounded-xl bg-red-950/60 px-3 py-2 text-sm text-red-300">{error}</p>}
 
-      {mode === 'straighten' ? (
+      {mode === 'auto' ? (
+        <AutoFixPanel pixels={current.pixels} original={original.pixels} changes={current.changes} busy={busy} onAuto={autoFix} />
+      ) : mode === 'crop' ? (
         <>
           <p className="mt-3 text-sm text-slate-400">
             Drag each circle onto a corner of the card itself (not the toploader), then tap Straighten.
           </p>
-          <CornerEditor
-            pixels={current.pixels}
-            quad={current.quad}
-            onChange={(quad) => setCurrent((c) => ({ ...c, quad }))}
-          />
+          <CornerEditor pixels={current.pixels} quad={quad} onChange={(q) => setCorners({ on: current.pixels, quad: q })} />
           <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setCurrent((c) => ({ ...c, quad: findCardCorners(c.pixels) }))}
-              className={`${buttonSecondary} flex-1`}
-            >
-              Auto
+            <button type="button" disabled={busy || !moved} onClick={() => setCorners(null)} className={`${buttonSecondary} flex-1`}>
+              Reset
             </button>
             <button type="button" disabled={busy} onClick={rotate} className={`${buttonSecondary} flex-1`}>
               <Icon name="refresh" size={18} /> Rotate
             </button>
             <button
               type="button"
-              disabled={busy || isFullFrame(current.quad)}
+              disabled={busy || isFullFrame(quad)}
               onClick={straighten}
               className={`${buttonPrimary} flex-[1.4]`}
             >
@@ -240,10 +246,13 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
       ) : mode === 'light' ? (
         <>
           <p className="mt-3 text-sm text-slate-400">
-            Auto evens out dim, washed-out or yellowish light. Or set it yourself (sharpness helps a photo
-            softened by the toploader), then tap Apply.
+            Set it yourself (sharpness helps a photo softened by the toploader), then tap Apply.
           </p>
-          <LightPanel pixels={current.pixels} busy={busy} note={note} onAuto={autoFixLight} onApply={light} />
+          <LightPanel
+            pixels={current.pixels}
+            busy={busy}
+            onApply={(adjust) => run(() => ({ ...current, pixels: adjustLight(current.pixels, adjust), changes: null }))}
+          />
         </>
       ) : (
         <>
@@ -251,23 +260,23 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
             Paint over the glare, a little past its soft edge, then tap Fill. Best on borders and plain areas: it
             can’t bring back text or faces.
           </p>
-          <TouchUpCanvas pixels={current.pixels} busy={busy} onFill={fill} />
+          <TouchUpCanvas
+            pixels={current.pixels}
+            busy={busy}
+            onFill={(mask) => run(() => ({ ...current, pixels: fillGlare(current.pixels, mask), changes: null }))}
+          />
         </>
       )}
 
-      <div className="mt-3 flex gap-2">
-        <button type="button" disabled={busy || history.length === 0} onClick={undo} className={`${buttonSecondary} flex-1`}>
-          Undo
-        </button>
-        <button type="button" disabled={busy || !edited} onClick={startOver} className={`${buttonSecondary} flex-1`}>
-          Start over
-        </button>
-      </div>
-
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-800 bg-slate-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="mx-auto flex max-w-3xl gap-3">
-          <button type="button" onClick={cancel} className={`${buttonSecondary} min-h-12 flex-1`}>
-            Cancel
+          <button
+            type="button"
+            disabled={busy || history.length === 0}
+            onClick={undo}
+            className={`${buttonSecondary} min-h-12 flex-1`}
+          >
+            <Icon name="undo" size={18} /> Undo
           </button>
           <button type="button" disabled={busy || !edited} onClick={save} className={`${buttonPrimary} min-h-12 flex-[2]`}>
             {replace.isPending ? 'Saving…' : 'Save photo'}

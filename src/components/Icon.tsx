@@ -22,6 +22,8 @@ const PATHS = {
   stop: 'M7 7h10v10H7z',
   edit: 'M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4',
   refresh: 'M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5',
+  sparkle: 'M10 3l1.8 5.2L17 10l-5.2 1.8L10 17l-1.8-5.2L3 10l5.2-1.8L10 3ZM18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9L18 14Z',
+  undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
 } as const
 
 export type IconName = keyof typeof PATHS

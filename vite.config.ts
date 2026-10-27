@@ -58,6 +58,8 @@ export default defineConfig({
       workbox: { globPatterns: ['**/*.{js,css,html,svg,png}'] },
     }),
   ],
+  // The photo touch-up worker (lib/touchUpWorker.ts) is a module worker, which every browser the app targets runs.
+  worker: { format: 'es' },
   build: {
     // supabase-js + React + zod in one chunk; it's precached by the service worker after the first visit.
     chunkSizeWarningLimit: 800,

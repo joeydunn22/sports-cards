@@ -354,6 +354,12 @@ const FLAT_SPREAD = 20
 
 export type TouchUpChange = 'straightened' | 'glare' | 'lighting'
 
+export const CHANGE_LABELS: Record<TouchUpChange, string> = {
+  straightened: 'Trimmed & straightened',
+  glare: 'Glare filled',
+  lighting: 'Lighting fixed',
+}
+
 /** Nearest-neighbour shrink to at most `maxEdge` on the long side (for detection, not for display). */
 export function downscale(pixels: Pixels, maxEdge: number): Pixels {
   const scale = Math.min(1, maxEdge / Math.max(pixels.width, pixels.height))

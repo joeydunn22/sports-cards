@@ -54,9 +54,9 @@ function Photo({ path, label, editTo, onOpen }: PhotoProps) {
         <Link
           to={editTo}
           aria-label={`Edit ${label.toLowerCase()} photo`}
-          className="absolute right-1 bottom-1 grid size-11 place-items-center rounded-full bg-slate-950/80 text-slate-100 active:bg-slate-800"
+          className="absolute right-1 bottom-1 flex min-h-11 items-center gap-1.5 rounded-full bg-slate-950/85 px-3 text-sm font-medium text-slate-100 active:bg-slate-800"
         >
-          <Icon name="edit" size={18} />
+          <Icon name="edit" size={16} /> Edit
         </Link>
       )}
     </div>

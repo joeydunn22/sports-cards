@@ -52,7 +52,7 @@ src/
       teams.ts         standardTeam(): one spelling per team (by sport and card year), Multiple Teams; teamFixes()
       useCardTable.ts  TanStack Table columns and sort options
       CardForm (set first, then card, version), QuickEntry (voice box), SetSection, ParallelPicker,
-      NewCardPage, EditCardPage, CollectionPage, PhotoEditorPage (CornerEditor, TouchUpCanvas, LightPanel, PhotoFrame),
+      NewCardPage, EditCardPage, CollectionPage, PhotoEditorPage (AutoFixPanel, CornerEditor, TouchUpCanvas, LightPanel, PhotoFrame),
       CardTable (CardTable + CardList), FilterPanel, CardBadges (.tsx)
     import-export/ cardCsv.ts (CSV <-> cards, validation), ImportExportPage.tsx (sections shown on More)
     scan/          captureState.ts (photos -> card spots, pairing), extraction.ts (AI reading + lookup -> form, cost, inbox sections),
@@ -73,6 +73,7 @@ src/
                    automatic: autoStraighten() (trim + straighten to cardEdges), findGlare() (blown-out spots on plain areas)
     cardEdges.ts   findCardEdges(): a card or its toploader by four straight colour edges (pure, tested); works on carpet
     photoLight.ts  lighting (pure, tested): autoLight() (falloff, colour cast, levels), adjustLight() sliders + sharpen
+    backgroundTouchUp.ts  touchUpInBackground(): autoTouchUp() in a web worker (touchUpWorker.ts), in place if none
   hooks/           useAuth, usePasskeys (Face ID), useCards, useScans (inbox, upload, AI submit/poll), usePhotos (signed URLs, upload),
                    useSessionState, useSetParallels / useChecklist (one set at a time), useKnownSets (Sets page counts),
                    useCardpedia (imports)
@@ -202,7 +203,8 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
 - **Photo touch-up (built 2026-10-26, untested on my phone):** the Edit button on a saved card's photo opens `PhotoEditorPage`, all in the browser, with no AI and no cost.
   - **Straighten:** corners are suggested automatically; I drag them onto the card (a magnifier helps), and the card is flattened upright.
   - **Touch up:** paint over glare and tap Fill. It fills from the surrounding colours, growing slightly past the painted area. It can't recover text or faces under the glare.
-  - **Adjust (built 2026-10-26, my request for more editing):** Auto lighting, or brightness, contrast, warmth and sharpness sliders with a live preview, then Apply.
+  - **Adjust (built 2026-10-26, my request for more editing):** brightness, contrast, warmth and sharpness sliders with a live preview, then Apply.
+  - **One-tap Auto fix (2026-10-26, my request; I expect to do this hundreds of times):** the editor opens on the Auto tab: one button runs the same pass as the automatic touch-up (crop, glare, lighting; no re-straightening of `-flat` photos), says what it changed, then "Hold to compare" and Save. Crop, Glare and Light tabs fix by hand what Auto missed; Undo sits next to Save. The old per-tab Auto buttons are gone (the Straighten tab's only re-suggested the same corners, so it looked broken).
   - Save replaces the photo and its thumbnail under a new path and deletes the old files. Only the latest version is kept, my choice.
   - Demo mode (`?demo`) gives the first demo card a sample photo for checking the editor; saving there does nothing.
   - **Automatic touch-up (built 2026-10-26, my request; untested on my phone):** More → Touch up photos.
@@ -213,6 +215,7 @@ The app is online-only by design. The PWA caches the app shell for fast loading 
     - **Tighter crop (2026-10-26):** when the outline is toploader-shaped (≥ 0.728), the card's own edges just inside it are used if they're card-shaped within 0.02 and clear along 85% of every side; otherwise it stays at the toploader. On my photos 2 of 12 tightened, both correctly. Never tightened when the outline is already card-shaped, since a frame printed on the card could pass for its edge.
     - **Lighting (2026-10-26, my idea instead of more glare work):** `photoLight.ts`, applied last in the automatic pass ("Lighting fixed"). Evens out light falling off across the card (a plane fitted to the band round the edge, 70% strength, capped), takes a lamp's cast out of the card's whites (capped gains; a card with no whites isn't tinted), and stretches dim or washed-out photos to a normal range (straight levels, max 1.5×, no midtone curve, so dark cards stay dark). Improved all 12 of my photos on the bench.
     - Each change shows Before | After, with After picked by default. Save marks the whole batch checked, keep-old and unchanged cards included.
+    - Streamlined 2026-10-26: starts on opening (no Start button), gets the next batch ready in the background while I review, saves and passes over batches with nothing to review by itself, shows "N of M cards done", and has Save & stop / Save & next. The scan inbox links to it when saved cards are waiting.
   - **Straight at capture:** `cropCard()` cuts each card with an 8% margin and trims and straightens it with the same edge finder, falling back to the plain 4% box if no card is found for sure. Straightened photos are saved with `-flat` in the name, so the automatic pass only looks for glare on them.
 - **Duplicate detection (built 2026-10-04):** `duplicates.ts`. The form flags a card already in the collection; on save, a plain extra copy offers "Add to it" (quantity) and a same serial/cert asks before saving twice. Graded and numbered copies stay separate rows.
 - **Face ID sign-in (built 2026-10-04):** Supabase Auth passkeys (`usePasskeys.ts`); set up from More, used from the login screen. Passkeys are enabled in the dashboard (RP ID `joeydunn22.github.io`, confirmed 2026-10-05). Ask whether setting it up on my iPhone worked.
