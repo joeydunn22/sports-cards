@@ -74,11 +74,11 @@ export function ReviewScanPage() {
   const notes = read && extraction ? fieldNotes(extraction) : {}
   const cost = extraction ? extractionCost(extraction) : null
 
-  if (isPending) return <p className="p-6 text-slate-400">Loading…</p>
+  if (isPending) return <p className="p-6 text-ink-400">Loading…</p>
   if (!scan || !initialValues) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <p className="text-slate-300">That card isn’t in the inbox any more.</p>
+        <p className="text-ink-300">That card isn’t in the inbox any more.</p>
         <Link to="/scan" className={`${buttonSecondary} mt-4`}>
           Back to inbox
         </Link>
@@ -181,12 +181,12 @@ function AiStatus({ scan, extraction: e, cost, busy, lookupCost, onReread, onLoo
   return (
     <section className="mb-4 flex flex-col gap-2">
       {status === 'processing' && (
-        <p className={`${callout} bg-sky-950/60 text-sky-200`}>
+        <p className={`${callout} bg-accent-950/60 text-accent-200`}>
           The AI is reading this card. Results usually arrive within a few minutes; this page updates by itself.
         </p>
       )}
       {status === 'looking_up' && (
-        <p className={`${callout} bg-sky-950/60 text-sky-200`}>
+        <p className={`${callout} bg-accent-950/60 text-accent-200`}>
           The AI wasn’t sure about {listFields(e?.uncertain_fields) || 'part of this card'}, so it’s checking the set’s
           checklist. You can save now or wait; this page updates by itself.
         </p>
@@ -204,16 +204,16 @@ function AiStatus({ scan, extraction: e, cost, busy, lookupCost, onReread, onLoo
         </p>
       )}
       {status === 'ready' && e?.triage === 'lookup' && !lookup && (
-        <p className={`${callout} bg-slate-900 text-slate-300`}>
+        <p className={`${callout} bg-ink-900 text-ink-300`}>
           The AI suggests checking the set’s checklist for {listFields(e.uncertain_fields) || 'this card'}. Automatic
           checklist searches are off; use “Check checklist” below.
         </p>
       )}
       {lookup?.fields && <LookupResult extraction={e!} />}
-      {lookup?.error && <p className={`${callout} bg-slate-900 text-slate-400`}>{lookup.error}</p>}
-      {read(status) && e?.notes && <p className={`${callout} bg-slate-900 text-slate-300`}>{e.notes}</p>}
+      {lookup?.error && <p className={`${callout} bg-ink-900 text-ink-400`}>{lookup.error}</p>}
+      {read(status) && e?.notes && <p className={`${callout} bg-ink-900 text-ink-300`}>{e.notes}</p>}
       {!working && (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-500">
           <span>
             {cost
               ? `${lookup?.fields ? 'Read and checked' : 'Read'} by ${cost.model} for about ${(cost.dollars * 100).toFixed(1)}¢`
@@ -227,7 +227,7 @@ function AiStatus({ scan, extraction: e, cost, busy, lookupCost, onReread, onLoo
                 type="button"
                 disabled={busy}
                 onClick={onLookup}
-                className="min-h-11 px-2 font-medium text-sky-400 disabled:opacity-50"
+                className="min-h-11 px-2 font-medium text-accent-400 disabled:opacity-50"
               >
                 Check checklist · ~{lookupCost}
               </button>
@@ -236,7 +236,7 @@ function AiStatus({ scan, extraction: e, cost, busy, lookupCost, onReread, onLoo
               aria-label="Model"
               value={model}
               onChange={(ev) => setModel(ev.target.value as typeof model)}
-              className="min-h-11 rounded-lg bg-transparent px-1 text-slate-300"
+              className="min-h-11 rounded-lg bg-transparent px-1 text-ink-300"
             >
               {AI_MODELS.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -248,7 +248,7 @@ function AiStatus({ scan, extraction: e, cost, busy, lookupCost, onReread, onLoo
               type="button"
               disabled={busy}
               onClick={() => onReread(model)}
-              className="min-h-11 px-2 font-medium text-sky-400 disabled:opacity-50"
+              className="min-h-11 px-2 font-medium text-accent-400 disabled:opacity-50"
             >
               {busy ? 'Sending…' : status === 'pending' ? 'Read with AI' : 'Read again'}
             </button>
@@ -271,8 +271,8 @@ function LookupResult({ extraction: e }: { extraction: Extraction }) {
   const changed = lookup.changed ?? []
   const open = lookup.still_uncertain ?? []
   return (
-    <div className={`${callout} flex flex-col gap-1 border border-emerald-900/60 bg-emerald-950/30 text-slate-300`}>
-      <p className="font-medium text-emerald-200">
+    <div className={`${callout} flex flex-col gap-1 border border-accent-900/60 bg-accent-950/30 text-ink-300`}>
+      <p className="font-medium text-accent-200">
         {lookup.cached
           ? 'Matched your card database (free, no web search)'
           : `Checked against the checklist${
@@ -287,7 +287,7 @@ function LookupResult({ extraction: e }: { extraction: Extraction }) {
         <ul className="mt-1 flex flex-col gap-1">
           {lookup.sources!.map((source) => (
             <li key={source.url} className="truncate">
-              <a href={source.url} target="_blank" rel="noreferrer" className="text-sky-400 underline">
+              <a href={source.url} target="_blank" rel="noreferrer" className="text-accent-400 underline">
                 {source.title || source.url}
               </a>
             </li>

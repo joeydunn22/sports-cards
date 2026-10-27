@@ -95,7 +95,7 @@ export function CornerEditor({ pixels, quad, onChange }: CornerEditorProps) {
             className="absolute size-11 -translate-x-1/2 -translate-y-1/2 touch-none"
             style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
           >
-            <span className="absolute inset-3 rounded-full border-2 border-sky-400 bg-sky-400/30" />
+            <span className="absolute inset-3 rounded-full border-2 border-accent-400 bg-accent-400/30" />
           </button>
         ))}
       </PhotoFrame>
@@ -105,7 +105,7 @@ export function CornerEditor({ pixels, quad, onChange }: CornerEditorProps) {
           width={LOUPE_SIZE}
           height={LOUPE_SIZE}
           aria-hidden
-          className={`pointer-events-none absolute top-0 ${quad[active].x < 0.5 ? 'right-0' : 'left-0'} rounded-full border-2 border-sky-400 shadow-lg shadow-black/60`}
+          className={`pointer-events-none absolute top-0 ${quad[active].x < 0.5 ? 'right-0' : 'left-0'} rounded-full border-2 border-accent-400 shadow-lg shadow-black/60`}
           style={{ width: LOUPE_SIZE, height: LOUPE_SIZE }}
         />
       )}

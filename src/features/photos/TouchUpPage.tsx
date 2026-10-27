@@ -86,7 +86,7 @@ export function TouchUpPage() {
     navigate('/more')
   }
 
-  if (isPending) return <p className="p-6 text-slate-400">Loading…</p>
+  if (isPending) return <p className="p-6 text-ink-400">Loading…</p>
 
   const bar = total > 0 && <Progress done={checked + (progress?.done ?? 0)} total={total} />
 
@@ -96,11 +96,11 @@ export function TouchUpPage() {
       <Shell onClose={close}>
         <section className={`${panel} flex flex-col gap-3 p-4`}>
           <p className="flex items-center gap-2 font-medium">
-            <span className="size-4 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+            <span className="size-4 animate-spin rounded-full border-2 border-accent-400 border-t-transparent" />
             Touching up card {at} of {total}…
           </p>
           {bar}
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-400">
             Cropping to the card, filling glare and fixing the lighting, here on your phone at no cost. You’ll see
             before and after for every change.
           </p>
@@ -114,9 +114,9 @@ export function TouchUpPage() {
       <Shell onClose={close}>
         <section className={`${panel} flex flex-col gap-3 p-4`}>
           <p className="flex items-center gap-2 font-semibold">
-            <Icon name="check" size={20} className="text-emerald-400" /> All photos checked
+            <Icon name="check" size={20} className="text-accent-400" /> All photos checked
           </p>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-400">
             {checked > 0 &&
               `${checked} ${checked === 1 ? 'card' : 'cards'} checked this time, ${improved} ${improved === 1 ? 'photo' : 'photos'} improved. `}
             New cards are touched up as they’re photographed, so they never need this page.
@@ -135,7 +135,7 @@ export function TouchUpPage() {
     <Shell onClose={close}>
       <div className="mb-3 flex flex-col gap-2">
         {bar}
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-400">
           Tap the one to keep. After is kept unless you tap Before.
           {unchanged > 0 && ` ${unchanged} ${unchanged === 1 ? 'card needed' : 'cards needed'} no changes.`}
           {batch.failed.length > 0 && ` ${batch.failed.length} couldn’t be loaded and will be skipped.`}
@@ -157,7 +157,7 @@ export function TouchUpPage() {
           Couldn’t save: {save.error.message}. Try again.
         </p>
       )}
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-800 bg-slate-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-ink-800 bg-ink-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="mx-auto flex max-w-3xl gap-3">
           {left > 0 && (
             <button
@@ -187,10 +187,10 @@ export function TouchUpPage() {
 function Progress({ done, total }: { done: number; total: number }) {
   return (
     <div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
-        <div className="h-full bg-sky-500 transition-all" style={{ width: `${(done / total) * 100}%` }} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-ink-800">
+        <div className="h-full bg-accent-500 transition-all" style={{ width: `${(done / total) * 100}%` }} />
       </div>
-      <p className="mt-1 text-right text-xs text-slate-500 tabular-nums">
+      <p className="mt-1 text-right text-xs text-ink-500 tabular-nums">
         {done} of {total} cards done
       </p>
     </div>
@@ -210,8 +210,8 @@ function ReviewCard({ result: { card, sides }, pickOf, onPick, onZoom }: ReviewC
       <p className="truncate text-sm font-medium">{cardTitle(card)}</p>
       {sides.map((s) => (
         <div key={s.side}>
-          <p className="mb-1.5 text-xs text-slate-400">
-            <span className="font-semibold text-slate-300 capitalize">{s.side}</span> ·{' '}
+          <p className="mb-1.5 text-xs text-ink-400">
+            <span className="font-semibold text-ink-300 capitalize">{s.side}</span> ·{' '}
             {s.changes.map((c) => CHANGE_LABELS[c]).join(' · ')}
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -242,15 +242,15 @@ function Version({ label, url, picked, onPick, onZoom }: VersionProps) {
         onClick={onPick}
         aria-pressed={picked}
         aria-label={`Keep ${label.toLowerCase()}`}
-        className={`grid aspect-[5/7] w-full place-items-center overflow-hidden rounded-xl border bg-slate-900 ${
-          picked ? 'border-sky-400 ring-2 ring-sky-400' : 'border-slate-800 opacity-60'
+        className={`grid aspect-[5/7] w-full place-items-center overflow-hidden rounded-xl border bg-ink-900 ${
+          picked ? 'border-accent-400 ring-2 ring-accent-400' : 'border-ink-800 opacity-60'
         }`}
       >
         <img src={url} alt={label} className="size-full object-contain" />
       </button>
       <span
         className={`pointer-events-none absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
-          picked ? 'bg-sky-500 text-slate-950' : 'bg-slate-950/80 text-slate-200'
+          picked ? 'bg-accent-500 text-ink-950' : 'bg-ink-950/80 text-ink-200'
         }`}
       >
         {picked && <Icon name="check" size={12} />}
@@ -260,7 +260,7 @@ function Version({ label, url, picked, onPick, onZoom }: VersionProps) {
         type="button"
         onClick={() => onZoom(url)}
         aria-label={`View ${label.toLowerCase()} full size`}
-        className="absolute top-1 right-1 grid size-11 place-items-center rounded-full bg-slate-950/80 text-slate-100"
+        className="absolute top-1 right-1 grid size-11 place-items-center rounded-full bg-ink-950/80 text-ink-100"
       >
         <Icon name="search" size={18} />
       </button>
@@ -282,7 +282,7 @@ function Zoom({ url, onClose }: { url: string; onClose: () => void }) {
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 grid size-11 place-items-center rounded-full bg-slate-800/90 text-slate-100"
+        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 grid size-11 place-items-center rounded-full bg-ink-800/90 text-ink-100"
       >
         <Icon name="close" size={22} />
       </button>
@@ -295,7 +295,7 @@ function Shell({ onClose, children }: { onClose: () => void; children: ReactNode
     <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] pb-28 md:pt-4">
       <header className="mb-4 flex items-center justify-between gap-3 pt-2">
         <h1 className="text-2xl font-bold tracking-tight">Touch up photos</h1>
-        <button type="button" onClick={onClose} className="min-h-11 px-2 text-sm font-medium text-sky-400">
+        <button type="button" onClick={onClose} className="min-h-11 px-2 text-sm font-medium text-accent-400">
           Close
         </button>
       </header>

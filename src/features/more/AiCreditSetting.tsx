@@ -33,17 +33,17 @@ export function AiCreditSetting() {
         {credit ? (
           <>
             <p className="mt-1 text-3xl font-bold tracking-tight">≈ ${credit.left.toFixed(2)} left</p>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-ink-400">
               ${credit.spent.toFixed(2)} spent since you entered ${Number(settings.credit_dollars).toFixed(2)} on{' '}
               {new Date(settings.credit_set_at!).toLocaleDateString()}.
             </p>
           </>
         ) : (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-400">
             Enter your balance from the Anthropic Console, and the app will count down as AI runs use it.
           </p>
         )}
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-ink-500">
           An estimate from this app’s own log ({usage.length} {usage.length === 1 ? 'run' : 'runs'}, ${total.toFixed(2)}{' '}
           in all). The Console has the exact figure.
         </p>
@@ -62,11 +62,11 @@ export function AiCreditSetting() {
           {credit ? 'Update' : 'Save'}
         </button>
       </form>
-      <a href={CONSOLE_BILLING} target="_blank" rel="noreferrer" className="-mt-2 text-sm text-sky-400 underline">
+      <a href={CONSOLE_BILLING} target="_blank" rel="noreferrer" className="-mt-2 text-sm text-accent-400 underline">
         Check the balance in the Console
       </a>
 
-      <div className="flex flex-col gap-1 border-t border-slate-800 pt-3">
+      <div className="flex flex-col gap-1 border-t border-ink-800 pt-3">
         <Toggle
           label="Ask before AI runs"
           hint="Shows the estimated cost and waits for OK. Off: runs start right away; estimates still show on the buttons."
@@ -92,11 +92,11 @@ function Toggle(props: { label: string; hint: string; checked: boolean; onChange
         type="checkbox"
         checked={props.checked}
         onChange={(e) => props.onChange(e.target.checked)}
-        className="mt-0.5 size-5 shrink-0 accent-sky-500"
+        className="mt-0.5 size-5 shrink-0 accent-accent-500"
       />
       <span>
         <span className="block font-medium">{props.label}</span>
-        <span className="block text-sm text-slate-400">{props.hint}</span>
+        <span className="block text-sm text-ink-400">{props.hint}</span>
       </span>
     </label>
   )

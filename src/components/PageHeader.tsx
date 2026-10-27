@@ -9,25 +9,28 @@ type PageHeaderProps = {
   backTo?: string
   backLabel?: string
   actions?: ReactNode
+  /** A small line above the title (the card screen puts the team there). */
+  eyebrow?: ReactNode
 }
 
-export function PageHeader({ title, subtitle, backTo, backLabel = 'Back', actions }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, backTo, backLabel = 'Back', actions, eyebrow }: PageHeaderProps) {
   return (
-    <header className="mb-5 flex flex-col gap-1">
+    <header className="mb-6 flex flex-col gap-1">
       {backTo && (
         <Link
           to={backTo}
-          className="-ml-2 flex min-h-11 items-center gap-0.5 self-start pr-2 text-sm text-sky-400 active:text-sky-300"
+          className="-ml-2 flex min-h-11 items-center gap-0.5 self-start pr-2 text-[15px] font-medium text-accent-400 active:text-accent-300"
         >
           <Icon name="back" size={20} />
           {backLabel}
         </Link>
       )}
+      {eyebrow && <div className="mt-1 text-[12px] font-semibold tracking-[0.08em] uppercase">{eyebrow}</div>}
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        <h1 className="text-[32px] leading-tight font-bold tracking-tight text-ink-50">{title}</h1>
         {actions}
       </div>
-      {subtitle && <div className="text-sm text-slate-400">{subtitle}</div>}
+      {subtitle && <div className="text-[15px] text-ink-400">{subtitle}</div>}
     </header>
   )
 }

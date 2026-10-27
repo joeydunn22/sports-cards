@@ -41,7 +41,7 @@ export function LightPanel({ pixels, busy, onApply }: LightPanelProps) {
       </div>
       <div className="flex flex-col gap-1">
         {SLIDERS.map(({ key, label, min, low, high }) => (
-          <label key={key} className="flex min-h-11 items-center gap-3 text-sm text-slate-300">
+          <label key={key} className="flex min-h-11 items-center gap-3 text-sm text-ink-300">
             <span className="w-20 shrink-0">{label}</span>
             <input
               type="range"
@@ -51,9 +51,9 @@ export function LightPanel({ pixels, busy, onApply }: LightPanelProps) {
               value={adjust[key]}
               aria-valuetext={adjust[key] === 0 ? 'unchanged' : `${adjust[key] < 0 ? low : high} ${Math.abs(adjust[key])}`}
               onChange={(e) => setSetting({ on: pixels, adjust: { ...adjust, [key]: Number(e.target.value) } })}
-              className="flex-1 accent-sky-500"
+              className="flex-1 accent-accent-500"
             />
-            <span className="w-9 shrink-0 text-right text-xs text-slate-500 tabular-nums">
+            <span className="w-9 shrink-0 text-right text-xs text-ink-500 tabular-nums">
               {adjust[key] > 0 ? '+' : ''}
               {adjust[key]}
             </span>

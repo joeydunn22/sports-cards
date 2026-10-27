@@ -50,6 +50,7 @@ src/
       spokenCard.ts    parseCardText(): one spoken/typed sentence -> form fields (free, on the phone)
       suggestions.ts   per-field autocomplete lists, last-used sport
       teams.ts         standardTeam(): one spelling per team (by sport and card year), Multiple Teams; teamFixes()
+      teamColors.ts    teamColors(): MLB club colours (via standardTeam), onDark = a shade that reads on the background
       useCardTable.ts  TanStack Table columns and sort options
       CardForm (set first, then card, version), QuickEntry (voice box), SetSection, ParallelPicker,
       NewCardPage, EditCardPage, CollectionPage, PhotoEditorPage (AutoFixPanel, CornerEditor, TouchUpCanvas, LightPanel, PhotoFrame),
@@ -171,6 +172,7 @@ Free Supabase projects pause after about 7 days of inactivity. `keepalive.yml` p
 The app is online-only by design. The PWA caches the app shell for fast loading and home-screen install, but all reads and writes go straight to Supabase. Don't build offline sync.
 
 ## UX conventions
+- **Look & feel (2026-10-26, my choice: modern and minimalist):** deep dark with an electric lime accent. Colours come only from the `ink` (warm near-black neutrals) and `accent` (lime) scales in `index.css`; don't use Tailwind's `slate`/`sky`/`emerald`. Success states use the accent; red and amber stay for errors and warnings. Surfaces are filled with hairlines, not bordered boxes; buttons are pills; the phone tab bar floats (Collection · Scan · Add · More). Team colours (`teamColors()`, MLB only for now) are the only other colour: a thin edge on list rows and a wash behind the card screen.
 - **Mobile-first.** Design at 375px width first. Tap targets are at least 44px.
 - **Quick-add flow:** "Save & add another" keeps year, set, insert and sport filled in, because cards are usually entered in batches from one set. The cursor returns to the player field.
 - Booleans (RC, Auto, Relic, Graded) are one-tap toggle chips, not checkboxes buried in the form.

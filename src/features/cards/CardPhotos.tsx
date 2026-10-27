@@ -13,7 +13,7 @@ export function CardPhotos({ front, back, cardId }: CardPhotosProps) {
   const editTo = (side: 'front' | 'back') => (cardId ? `/cards/${cardId}/photo/${side}` : undefined)
   return (
     <>
-      <div className="mb-4 grid grid-cols-2 gap-3">
+      <div className="mb-6 grid grid-cols-2 gap-3">
         <Photo path={front} label="Front" editTo={editTo('front')} onOpen={setOpen} />
         <Photo path={back} label="Back" editTo={editTo('back')} onOpen={setOpen} />
       </div>
@@ -28,7 +28,7 @@ function Photo({ path, label, editTo, onOpen }: PhotoProps) {
   const { data: url, isError } = usePhotoUrl(path)
   if (!path) {
     return (
-      <div className="grid aspect-[5/7] place-items-center rounded-xl border border-dashed border-slate-700 text-sm text-slate-500">
+      <div className="grid aspect-[5/7] place-items-center rounded-2xl border border-dashed border-ink-700 text-sm text-ink-500">
         No {label.toLowerCase()} photo
       </div>
     )
@@ -39,22 +39,22 @@ function Photo({ path, label, editTo, onOpen }: PhotoProps) {
         type="button"
         onClick={() => onOpen(path)}
         aria-label={`View ${label.toLowerCase()} full size`}
-        className="grid aspect-[5/7] w-full place-items-center overflow-hidden rounded-xl border border-slate-800 bg-slate-900"
+        className="grid aspect-[5/7] w-full place-items-center overflow-hidden rounded-2xl bg-ink-900 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.9)] ring-1 ring-white/[0.06] transition-transform active:scale-[0.98]"
       >
         {url ? (
           <img src={url} alt={label} className="size-full object-contain" />
         ) : (
-          <span className="text-sm text-slate-500">{isError ? 'Couldn’t load' : 'Loading…'}</span>
+          <span className="text-sm text-ink-500">{isError ? 'Couldn’t load' : 'Loading…'}</span>
         )}
       </button>
-      <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-md bg-slate-950/80 px-1.5 py-0.5 text-[11px] font-semibold text-slate-200">
+      <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-full bg-ink-950/75 px-2 py-0.5 text-[11px] font-semibold text-ink-200 backdrop-blur">
         {label}
       </span>
       {editTo && (
         <Link
           to={editTo}
           aria-label={`Edit ${label.toLowerCase()} photo`}
-          className="absolute right-1 bottom-1 flex min-h-11 items-center gap-1.5 rounded-full bg-slate-950/85 px-3 text-sm font-medium text-slate-100 active:bg-slate-800"
+          className="absolute right-1 bottom-1 flex min-h-11 items-center gap-1.5 rounded-full bg-ink-950/75 px-3 text-sm font-medium text-ink-100 backdrop-blur active:bg-ink-800"
         >
           <Icon name="edit" size={16} /> Edit
         </Link>
@@ -78,7 +78,7 @@ function Lightbox({ path, onClose }: { path: string; onClose: () => void }) {
         type="button"
         onClick={onClose}
         aria-label="Close"
-        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 grid size-11 place-items-center rounded-full bg-slate-800/90 text-slate-100"
+        className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-3 grid size-11 place-items-center rounded-full bg-ink-800/90 text-ink-100"
       >
         <Icon name="close" size={22} />
       </button>

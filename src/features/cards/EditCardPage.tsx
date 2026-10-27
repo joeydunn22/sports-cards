@@ -5,11 +5,13 @@ import { PageHeader } from '../../components/PageHeader'
 import { buttonDanger, buttonSecondary } from '../../components/ui'
 import { NO_CARDS, useCards, useDeleteCard, useUpdateCard } from '../../hooks/useCards'
 import { useSetHelp } from '../sets/useSetHelp'
+import { CardBadges } from './CardBadges'
 import { CardForm } from './CardForm'
 import { CardPhotos } from './CardPhotos'
 import { fromCard, toCardInput, type CardFormValues } from './cardSchema'
 import { cardTitle } from './cardText'
 import { buildSuggestions } from './suggestions'
+import { teamColors } from './teamColors'
 
 export function EditCardPage() {
   const { id } = useParams()
@@ -22,11 +24,11 @@ export function EditCardPage() {
   const suggestions = useMemo(() => buildSuggestions(cards), [cards])
   const card = cards.find((c) => c.id === id)
 
-  if (isPending) return <p className="p-6 text-slate-400">Loading…</p>
+  if (isPending) return <p className="p-6 text-ink-400">Loading…</p>
   if (!card) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <p className="text-slate-300">That card doesn’t exist (it may have been deleted).</p>
+        <p className="text-ink-300">That card doesn’t exist (it may have been deleted).</p>
         <Link to="/" className={`${buttonSecondary} mt-4`}>
           Back to collection
         </Link>
@@ -46,10 +48,44 @@ export function EditCardPage() {
     navigate('/')
   }
 
+  const colors = teamColors(card.team, card)
+  const version = [card.insert_name, card.parallel].filter(Boolean).join(' · ')
+
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] md:pt-4">
-      <PageHeader title="Edit card" subtitle={cardTitle(card)} backTo="/" backLabel="Collection" />
+    <main className="relative isolate mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] md:pt-4">
+      {/* The team's colour washes in behind the card, then fades to the page */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[34rem] md:rounded-b-[3rem]"
+        style={{
+          background: `radial-gradient(120% 70% at 50% 0%, ${colors ? `${colors.primary}66` : 'rgba(255,255,255,0.05)'}, transparent 75%)`,
+        }}
+      />
+      <PageHeader
+        title={card.player}
+        eyebrow={card.team ? <span style={{ color: colors?.onDark }} className={colors ? '' : 'text-ink-500'}>{card.team}</span> : null}
+        subtitle={
+          <div className="flex flex-col gap-2">
+            <p>
+              {card.year} {card.set_name} <span className="text-ink-500">#{card.card_number}</span>
+              {version && <span className="block text-ink-300">{version}</span>}
+            </p>
+            <div className="empty:hidden">
+              <CardBadges card={card} />
+            </div>
+          </div>
+        }
+        backTo="/"
+        backLabel="Collection"
+      />
       <CardPhotos front={card.front_image_path} back={card.back_image_path} cardId={card.id} />
+      <div
+        aria-hidden
+        className="mb-6 h-px"
+        style={{
+          background: `linear-gradient(90deg, transparent, ${colors?.onDark ?? 'rgba(255,255,255,0.12)'}, transparent)`,
+        }}
+      />
       {/* key: remount with fresh values if the card changes underneath us */}
       <CardForm
         key={card.updated_at}

@@ -10,6 +10,7 @@ const PATHS = {
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm9 2-4.35-4.35',
   sliders: 'M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4',
   back: 'M15 18l-6-6 6-6',
+  chevron: 'M6 9l6 6 6-6',
   close: 'M6 6l12 12M18 6 6 18',
   check: 'M5 12.5l4.5 4.5L19 7',
   download: 'M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14',

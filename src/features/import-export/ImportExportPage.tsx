@@ -36,7 +36,7 @@ export function ImportExportSections() {
     <>
       <section className={`${panel} flex flex-col gap-3 p-4`}>
         <h2 className="text-lg font-semibold">Export</h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-400">
           Download every card (including sold ones) as a CSV. It opens in Excel or Google Sheets and doubles as a
           backup.
         </p>
@@ -52,7 +52,7 @@ export function ImportExportSections() {
 
       <section className={`${panel} flex flex-col gap-3 p-4`}>
         <h2 className="text-lg font-semibold">Import</h2>
-        <div className="text-sm text-slate-400">
+        <div className="text-sm text-ink-400">
           <p>Add cards in bulk from a spreadsheet saved as CSV.</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>
@@ -70,7 +70,7 @@ export function ImportExportSections() {
         <button
           type="button"
           onClick={() => downloadFile('sports-cards-template.csv', csvTemplate())}
-          className="min-h-11 self-start text-sm text-sky-400 hover:text-sky-300"
+          className="min-h-11 self-start text-sm text-accent-400 hover:text-accent-300"
         >
           Download blank template
         </button>
@@ -80,8 +80,8 @@ export function ImportExportSections() {
         </label>
 
         {result && (
-          <div className="flex flex-col gap-3 rounded-xl bg-slate-950/60 p-4">
-            <p className="text-sm text-slate-400">{fileName}</p>
+          <div className="flex flex-col gap-3 rounded-xl bg-ink-950/60 p-4">
+            <p className="text-sm text-ink-400">{fileName}</p>
             {result.fatal ? (
               <p className="text-red-400">{result.fatal}</p>
             ) : (
@@ -109,9 +109,9 @@ export function ImportExportSections() {
                   </ul>
                 )}
                 {importCards.isSuccess ? (
-                  <p className="text-emerald-400">
+                  <p className="text-accent-400">
                     Imported: {importCards.data.inserted} added, {importCards.data.updated} updated.{' '}
-                    <Link to="/" className="text-sky-400">
+                    <Link to="/" className="text-accent-400">
                       View collection
                     </Link>
                   </p>

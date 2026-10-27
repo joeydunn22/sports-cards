@@ -41,7 +41,7 @@ export function QuickEntry({
 
   return (
     <section className={`${panel} p-4`}>
-      <label htmlFor="quick-entry" className="mb-2 block text-sm font-medium text-slate-300">
+      <label htmlFor="quick-entry" className="mb-2 block text-[13px] font-medium text-ink-400">
         Say or type the card
       </label>
       <div className="flex gap-2">
@@ -71,10 +71,10 @@ export function QuickEntry({
             aria-label={speech.listening ? 'Stop listening' : 'Say the card'}
             aria-pressed={speech.listening}
             onClick={speech.listening ? speech.stop : speech.start}
-            className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border transition-colors ${
+            className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full transition-colors ${
               speech.listening
-                ? 'animate-pulse border-red-400 bg-red-500 text-slate-950'
-                : 'border-slate-700 bg-slate-900 text-slate-200 active:bg-slate-800'
+                ? 'animate-pulse bg-red-500 text-white'
+                : 'bg-ink-800 text-ink-200 active:bg-ink-700'
             }`}
           >
             <Icon name={speech.listening ? 'stop' : 'mic'} size={20} />
@@ -93,7 +93,7 @@ export function QuickEntry({
       ) : result ? (
         <p className="mt-2 text-xs" role="status">
           {result.filled.length ? (
-            <span className="text-emerald-300">Filled {result.filled.join(', ')}.</span>
+            <span className="text-accent-300">Filled {result.filled.join(', ')}.</span>
           ) : (
             <span className="text-amber-300">Couldn’t place anything in “{result.said}”.</span>
           )}
@@ -102,7 +102,7 @@ export function QuickEntry({
           )}
         </p>
       ) : (
-        <p className="mt-2 text-xs text-slate-500">{hint}</p>
+        <p className="mt-2 text-xs text-ink-500">{hint}</p>
       )}
     </section>
   )

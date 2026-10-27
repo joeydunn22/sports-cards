@@ -11,13 +11,12 @@ export function ToggleChip({ label, pressed, onToggle }: ToggleChipProps) {
       type="button"
       aria-pressed={pressed}
       onClick={onToggle}
-      className={`min-h-11 rounded-full border px-4 text-sm font-medium transition-colors ${
+      className={`min-h-11 rounded-full px-4 text-sm font-medium transition-colors active:scale-[0.97] ${
         pressed
-          ? 'border-sky-400 bg-sky-500 text-slate-950'
-          : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500 active:bg-slate-800'
+          ? 'bg-accent-400 font-semibold text-ink-950'
+          : 'bg-ink-900 text-ink-300 ring-1 ring-ink-700 ring-inset hover:text-ink-100 active:bg-ink-800'
       }`}
     >
-      {pressed && <span aria-hidden>✓ </span>}
       {label}
     </button>
   )

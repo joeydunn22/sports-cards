@@ -25,11 +25,11 @@ export function DuplicateNotice({ matches }: { matches: DuplicateMatch[] }) {
               {LABEL[kind]}
               {card.quantity > 1 && ` (qty ${card.quantity})`}
             </p>
-            <p className="truncate text-slate-300">{cardTitle(card)}</p>
+            <p className="truncate text-ink-300">{cardTitle(card)}</p>
           </div>
         </div>
       ))}
-      {matches.length > 3 && <p className="text-slate-400">and {matches.length - 3} more</p>}
+      {matches.length > 3 && <p className="text-ink-400">and {matches.length - 3} more</p>}
     </section>
   )
 }
@@ -52,7 +52,7 @@ export function DuplicatePrompt({ match, quantity, busy, onMerge, onSeparate, on
         role="dialog"
         aria-modal="true"
         aria-labelledby="duplicate-title"
-        className="flex w-full max-w-md flex-col gap-4 rounded-2xl border border-slate-700 bg-slate-900 p-4 shadow-2xl"
+        className="flex w-full max-w-md flex-col gap-4 rounded-3xl bg-ink-900 p-5 shadow-2xl ring-1 ring-white/[0.08]"
       >
         <div className="flex gap-3">
           <CardThumb path={card.front_image_path} className="w-14" />
@@ -60,8 +60,8 @@ export function DuplicatePrompt({ match, quantity, busy, onMerge, onSeparate, on
             <h2 id="duplicate-title" className="font-semibold">
               {kind === 'same-copy' ? 'Already saved?' : 'You already have this card'}
             </h2>
-            <p className="text-sm text-slate-300">{cardTitle(card)}</p>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="text-sm text-ink-300">{cardTitle(card)}</p>
+            <p className="mt-1 text-sm text-ink-400">
               {kind === 'same-copy'
                 ? 'It has the same serial number or grading cert, so it may be the same card entered twice.'
                 : `Quantity ${card.quantity}. Another copy can go on the same entry.`}

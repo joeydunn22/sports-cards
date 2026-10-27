@@ -439,8 +439,8 @@ export function CardForm({
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4">
           <p
             role="status"
-            className={`pointer-events-auto flex max-w-md items-start gap-2 rounded-xl px-4 py-3 text-sm shadow-xl shadow-black/40 ${
-              status.kind === 'ok' ? 'bg-emerald-900 text-emerald-100' : 'bg-red-900 text-red-100'
+            className={`pointer-events-auto flex max-w-md items-start gap-2 rounded-full px-4 py-3 text-sm font-medium shadow-2xl shadow-black/60 ${
+              status.kind === 'ok' ? 'bg-ink-50 text-ink-950' : 'bg-red-500 text-white'
             }`}
           >
             {status.kind === 'ok' && <Icon name="check" size={18} className="mt-px shrink-0" />}
@@ -529,7 +529,7 @@ export function CardForm({
           </Field>
           {showNumbers && (
             <div className="col-span-2 flex flex-col gap-2 sm:col-span-4">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink-400">
                 {numberOptions[0].player}’s {numberOptions.length === 1 ? 'card' : 'cards'} in this set:
               </p>
               <div className="flex flex-wrap gap-2">
@@ -542,12 +542,12 @@ export function CardForm({
                       aria-pressed={chosen}
                       aria-label={`#${option.card_number}, ${option.insert_name || 'base'}`}
                       onClick={() => pickNumber(option)}
-                      className={`min-h-11 rounded-full border px-3.5 text-sm font-medium ${
-                        chosen ? 'border-sky-400 bg-sky-500 text-slate-950' : 'border-slate-700 text-slate-200 active:bg-slate-800'
+                      className={`min-h-11 rounded-full px-3.5 text-sm font-medium ${
+                        chosen ? 'bg-accent-400 text-ink-950' : 'bg-ink-900 text-ink-200 ring-1 ring-ink-700 ring-inset active:bg-ink-800'
                       }`}
                     >
                       #{option.card_number}
-                      <span className={chosen ? 'text-slate-800' : 'text-slate-400'}> · {option.insert_name || 'base'}</span>
+                      <span className={chosen ? 'text-ink-800' : 'text-ink-400'}> · {option.insert_name || 'base'}</span>
                     </button>
                   )
                 })}
@@ -564,7 +564,7 @@ export function CardForm({
             {textInput('insert_name', { list: 'insert_name', ...NAME_INPUT, onBlur: () => void refillParallel() })}
           </Field>
         </div>
-        {filledNote && <p className="mt-3 text-xs text-emerald-300">{filledNote}</p>}
+        {filledNote && <p className="mt-3 text-xs text-accent-300">{filledNote}</p>}
       </FormSection>
 
       <FormSection title="Version">
@@ -588,7 +588,7 @@ export function CardForm({
             onPick={pickParallel}
           />
           <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-slate-300">Serial numbered</span>
+            <span className="text-[13px] font-medium text-ink-400">Serial numbered</span>
             <div className="flex items-center gap-2">
               <input
                 id="serial_number"
@@ -599,7 +599,7 @@ export function CardForm({
                 className={inputClass}
                 {...register('serial_number')}
               />
-              <span className="text-lg text-slate-500">/</span>
+              <span className="text-lg text-ink-500">/</span>
               <input
                 id="print_run"
                 aria-label="Print run"
@@ -615,12 +615,12 @@ export function CardForm({
             ) : fieldNotes.serial_number || fieldNotes.print_run ? (
               <p className="text-xs text-amber-300">{fieldNotes.serial_number ?? fieldNotes.print_run}</p>
             ) : (
-              <p className="text-xs text-slate-500">Leave the first box blank if you only know the print run</p>
+              <p className="text-xs text-ink-500">Leave the first box blank if you only know the print run</p>
             )}
           </div>
         </div>
         {parallelNote && (parallelNote.field === 'parallel' ? parallel : printRun) === parallelNote.value && (
-          <p className="mt-3 text-xs text-emerald-300">{parallelNote.text}</p>
+          <p className="mt-3 text-xs text-accent-300">{parallelNote.text}</p>
         )}
         {offerLookup && (
           <div className="mt-3 flex flex-col gap-1">
@@ -634,7 +634,7 @@ export function CardForm({
                 ? 'Looking up parallels…'
                 : `Look up ${year.trim()} ${setName.trim()} parallels (~${lookUpParallels?.cost})`}
             </button>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-500">
               {lookUpParallels?.error ?? 'Once per set: after that, every card from it fills in for free.'}
             </p>
           </div>
@@ -690,7 +690,7 @@ export function CardForm({
       <details open={hasMoney} className={`${panel} group`}>
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between px-4 [&::-webkit-details-marker]:hidden">
           <span className={sectionTitle}>Value (optional)</span>
-          <Icon name="back" size={18} className="-rotate-90 text-slate-500 transition-transform group-open:rotate-90" />
+          <Icon name="chevron" size={18} className="text-ink-500 transition-transform group-open:rotate-180" />
         </summary>
         <div className="grid grid-cols-2 gap-4 px-4 pb-4 sm:grid-cols-4">
           <Field label="Est. value" htmlFor="estimated_value" error={errors.estimated_value?.message}>
@@ -725,7 +725,7 @@ export function CardForm({
         />
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-800 bg-slate-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-white/[0.05] bg-ink-950/85 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl gap-3">
           {mode === 'new' ? (
             <>

@@ -56,11 +56,11 @@ export function PhotoEditorPage() {
   const path = card && s ? (s === 'front' ? card.front_image_path : card.back_image_path) : null
   const image = usePhotoImage(path)
 
-  if (isPending) return <p className="p-6 text-slate-400">Loading…</p>
+  if (isPending) return <p className="p-6 text-ink-400">Loading…</p>
   if (!card || !s || !path) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <p className="text-slate-300">That photo doesn’t exist (the card may have been deleted).</p>
+        <p className="text-ink-300">That photo doesn’t exist (the card may have been deleted).</p>
         <Link to={card ? `/cards/${card.id}` : '/'} className={`${buttonSecondary} mt-4`}>
           Back
         </Link>
@@ -77,7 +77,7 @@ export function PhotoEditorPage() {
       </main>
     )
   }
-  if (!image.data) return <p className="p-6 text-slate-400">Loading photo…</p>
+  if (!image.data) return <p className="p-6 text-ink-400">Loading photo…</p>
   return <PhotoEditor key={path} card={card} side={s} path={path} image={image.data} />
 }
 
@@ -193,14 +193,14 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
       <header className="mb-3 flex items-start justify-between gap-3 pt-2">
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight">{side === 'front' ? 'Front' : 'Back'} photo</h1>
-          <p className="truncate text-sm text-slate-400">{cardTitle(card)}</p>
+          <p className="truncate text-sm text-ink-400">{cardTitle(card)}</p>
         </div>
-        <button type="button" onClick={cancel} className="min-h-11 shrink-0 px-2 text-sm font-medium text-sky-400">
+        <button type="button" onClick={cancel} className="min-h-11 shrink-0 px-2 text-sm font-medium text-accent-400">
           Cancel
         </button>
       </header>
 
-      <div className="grid grid-cols-4 gap-1 rounded-full bg-slate-900 p-1 text-center text-sm font-medium" role="tablist">
+      <div className="grid grid-cols-4 gap-1 rounded-full bg-ink-900 p-1 text-center text-sm font-medium" role="tablist">
         {MODES.map(({ mode: m, label }) => (
           <button
             key={m}
@@ -209,7 +209,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
             aria-selected={mode === m}
             disabled={busy}
             onClick={() => setMode(m)}
-            className={`min-h-10 rounded-full ${mode === m ? 'bg-sky-500 text-slate-950' : 'text-slate-400'}`}
+            className={`min-h-10 rounded-full ${mode === m ? 'bg-accent-500 text-ink-950' : 'text-ink-400'}`}
           >
             {label}
           </button>
@@ -222,7 +222,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
         <AutoFixPanel pixels={current.pixels} original={original.pixels} changes={current.changes} busy={busy} onAuto={autoFix} />
       ) : mode === 'crop' ? (
         <>
-          <p className="mt-3 text-sm text-slate-400">
+          <p className="mt-3 text-sm text-ink-400">
             Drag each circle onto a corner of the card itself (not the toploader), then tap Straighten.
           </p>
           <CornerEditor pixels={current.pixels} quad={quad} onChange={(q) => setCorners({ on: current.pixels, quad: q })} />
@@ -245,7 +245,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
         </>
       ) : mode === 'light' ? (
         <>
-          <p className="mt-3 text-sm text-slate-400">
+          <p className="mt-3 text-sm text-ink-400">
             Set it yourself (sharpness helps a photo softened by the toploader), then tap Apply.
           </p>
           <LightPanel
@@ -256,7 +256,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
         </>
       ) : (
         <>
-          <p className="mt-3 text-sm text-slate-400">
+          <p className="mt-3 text-sm text-ink-400">
             Paint over the glare, a little past its soft edge, then tap Fill. Best on borders and plain areas: it
             can’t bring back text or faces.
           </p>
@@ -268,7 +268,7 @@ function PhotoEditor({ card, side, path, image }: PhotoEditorProps) {
         </>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-800 bg-slate-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-ink-800 bg-ink-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
         <div className="mx-auto flex max-w-3xl gap-3">
           <button
             type="button"

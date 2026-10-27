@@ -114,14 +114,14 @@ export function CapturePage() {
       <Shell title="Scan cards" onCancel={() => navigate('/scan')}>
         {ai.dialog}
         <section className={`${panel} flex flex-col items-center gap-4 px-6 py-10 text-center`}>
-          <span className="grid size-14 place-items-center rounded-full bg-emerald-500/15 text-emerald-400">
+          <span className="grid size-14 place-items-center rounded-full bg-accent-500/15 text-accent-400">
             <Icon name="check" size={30} />
           </span>
           <div>
             <p className="text-lg font-semibold">
               {frontSpots.length} {frontSpots.length === 1 ? 'card' : 'cards'} added to your inbox
             </p>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-ink-400">
               {skippedAi
                 ? 'They haven’t been sent to the AI. Send them from the inbox when you’re ready.'
                 : readScans.isError
@@ -150,7 +150,7 @@ export function CapturePage() {
           <li
             key={s}
             aria-current={step === s ? 'step' : undefined}
-            className={`rounded-full py-2 ${step === s ? 'bg-sky-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}
+            className={`rounded-full py-2 ${step === s ? 'bg-accent-500 text-ink-950' : 'bg-ink-900 text-ink-400'}`}
           >
             {i + 1}. {s === 'fronts' ? 'Fronts' : s === 'backs' ? 'Backs' : 'Check'}
           </li>
@@ -162,7 +162,7 @@ export function CapturePage() {
           {fronts.length === 0 && (
             <section className={`${panel} mb-3 p-4`}>
               <p className="font-semibold">Photograph the fronts</p>
-              <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-sm text-slate-300">
+              <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-5 text-sm text-ink-300">
                 {TIPS.map((tip) => (
                   <li key={tip}>{tip}</li>
                 ))}
@@ -188,7 +188,7 @@ export function CapturePage() {
           {backs.length === 0 && (
             <section className={`${panel} mb-3 p-4`}>
               <p className="font-semibold">Now flip each card over where it lies</p>
-              <p className="mt-1 text-sm text-slate-300">
+              <p className="mt-1 text-sm text-ink-300">
                 Keep the same layout and take the photos in the same order, so each back lines up with its front.
                 The back is where the year and card number usually are.
               </p>
@@ -218,7 +218,7 @@ export function CapturePage() {
 
       {step === 'pairs' && (
         <>
-          <p className="mb-3 text-sm text-slate-400">
+          <p className="mb-3 text-sm text-ink-400">
             {backs.length
               ? 'Each row is one card. If a back is with the wrong front, tap it, then tap the one to swap with.'
               : 'Fronts only. You can add back photos later from each card.'}
@@ -228,7 +228,7 @@ export function CapturePage() {
               const back = backs.length ? backSpots[order[i]] : null
               return (
                 <li key={i} className={`${panel} flex flex-col gap-2 p-2`}>
-                  <span className="text-xs font-semibold text-slate-400">Card {i + 1}</span>
+                  <span className="text-xs font-semibold text-ink-400">Card {i + 1}</span>
                   <div className="grid grid-cols-2 gap-1.5">
                     <SpotPreview spot={front} />
                     {back ? (
@@ -237,12 +237,12 @@ export function CapturePage() {
                         aria-label={`Back of card ${i + 1}${selected === i ? ' (selected)' : ''}`}
                         aria-pressed={selected === i}
                         onClick={() => tapBack(i)}
-                        className={`rounded-md ${selected === i ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-slate-900' : ''}`}
+                        className={`rounded-md ${selected === i ? 'ring-2 ring-accent-400 ring-offset-2 ring-offset-ink-900' : ''}`}
                       >
                         <SpotPreview spot={back} />
                       </button>
                     ) : (
-                      <div className="grid place-items-center rounded-md border border-dashed border-slate-700 text-xs text-slate-500">
+                      <div className="grid place-items-center rounded-md border border-dashed border-ink-700 text-xs text-ink-500">
                         No back
                       </div>
                     )}
@@ -327,7 +327,7 @@ function Shell({ title, onCancel, children }: { title: string; onCancel: () => v
     <main className="mx-auto max-w-3xl px-4 pt-[env(safe-area-inset-top)] pb-28 md:pt-4">
       <header className="mb-4 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        <button type="button" onClick={onCancel} className="min-h-11 px-2 text-sm font-medium text-sky-400">
+        <button type="button" onClick={onCancel} className="min-h-11 px-2 text-sm font-medium text-accent-400">
           Cancel
         </button>
       </header>
@@ -338,7 +338,7 @@ function Shell({ title, onCancel, children }: { title: string; onCancel: () => v
 
 function ActionBar({ children }: { children: ReactNode }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-10 border-t border-slate-800 bg-slate-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+    <div className="fixed inset-x-0 bottom-0 z-10 border-t border-ink-800 bg-ink-950/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
       <div className="mx-auto flex max-w-3xl gap-3">{children}</div>
     </div>
   )

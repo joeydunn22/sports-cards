@@ -12,14 +12,14 @@ export function VersionTag() {
         type="button"
         onClick={updateApp}
         title={`Running ${formatBuild(current)}; ${formatBuild(latest)} is live`}
-        className="flex min-h-11 items-center gap-1 rounded-full px-2 text-xs font-medium text-sky-400 active:text-sky-300"
+        className="flex min-h-11 items-center gap-1 rounded-full px-2 text-xs font-medium text-accent-400 active:text-accent-300"
       >
         <Icon name="refresh" size={14} /> Update
       </button>
     )
   }
   return (
-    <span className="text-xs text-slate-500 tabular-nums" title={`Built ${new Date(current.time).toLocaleString()}`}>
+    <span className="text-xs text-ink-500 tabular-nums" title={`Built ${new Date(current.time).toLocaleString()}`}>
       {formatBuild(current)}
     </span>
   )

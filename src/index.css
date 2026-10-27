@@ -1,11 +1,80 @@
 @import 'tailwindcss';
 
+/*
+ * The app's palette. `ink` is a warm near-black neutral (backgrounds, text, hairlines); `accent` is an
+ * electric lime for buttons, the active tab and highlights. Team colours (teamColors.ts) are the only
+ * other colour, so keep everything else monochrome.
+ */
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable', 'Segoe UI', system-ui, 'Helvetica Neue',
+    Arial, sans-serif;
+
+  --color-ink-50: #f7f7f5;
+  --color-ink-100: #ededea;
+  --color-ink-200: #d9d9d5;
+  --color-ink-300: #b8b8b3;
+  --color-ink-400: #8e8e89;
+  --color-ink-500: #6b6b67;
+  --color-ink-600: #4c4c49;
+  --color-ink-700: #353533;
+  --color-ink-800: #242423;
+  --color-ink-900: #161617;
+  --color-ink-950: #0b0b0c;
+
+  --color-accent-50: #f8fde8;
+  --color-accent-100: #eefac4;
+  --color-accent-200: #e0f68e;
+  --color-accent-300: #d2f55a;
+  --color-accent-400: #c6f432;
+  --color-accent-500: #b4e21c;
+  --color-accent-600: #8db30f;
+  --color-accent-700: #6a8710;
+  --color-accent-800: #546a13;
+  --color-accent-900: #3a4a10;
+  --color-accent-950: #1f2906;
+
+  --animate-page-in: page-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+}
+
 html,
 body,
 #root {
   min-height: 100%;
 }
 
+/* Native scrollbars, selects and date pickers follow the dark theme */
+html {
+  color-scheme: dark;
+}
+
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  @apply bg-ink-950 font-sans text-ink-100 antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  @apply bg-accent-400 text-ink-950;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

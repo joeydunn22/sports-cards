@@ -57,21 +57,21 @@ export function SetsPage() {
     <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 md:pt-6">
       <PageHeader title="Sets" backTo="/more" backLabel="More" />
 
-      <section className={`${panel} flex flex-col gap-2 p-4 text-sm text-slate-300`}>
+      <section className={`${panel} flex flex-col gap-2 p-4 text-sm text-ink-300`}>
         <p>What the app has learned about each set, used to fill in cards for free before any paid AI search:</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            <span className="font-medium text-slate-100">Parallels</span>: each color or finish and what it’s numbered
+            <span className="font-medium text-ink-100">Parallels</span>: each color or finish and what it’s numbered
             to. In 2011 Bowman Chrome Draft, a card numbered /5 can only be the Red Refractor.
           </li>
           <li>
-            <span className="font-medium text-slate-100">Cards</span>: who each card number is, from cards you save and
+            <span className="font-medium text-ink-100">Cards</span>: who each card number is, from cards you save and
             checklist searches.
           </li>
         </ul>
         <p>
           Baseball sets come from{' '}
-          <a href="https://baseballcardpedia.com/" target="_blank" rel="noreferrer" className="text-sky-400 underline">
+          <a href="https://baseballcardpedia.com/" target="_blank" rel="noreferrer" className="text-accent-400 underline">
             Baseball Cardpedia
           </a>{' '}
           for free: the first time a baseball card from a set is scanned or entered, its page is read in.
@@ -95,11 +95,11 @@ export function SetsPage() {
           />
         )}
         {shown.length === 0 ? (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-ink-400">
             {sets.length ? 'No set matches.' : 'Nothing yet. Save cards or look up a set’s parallels above.'}
           </p>
         ) : (
-          <ul className="flex flex-col divide-y divide-slate-800">
+          <ul className="flex flex-col divide-y divide-ink-800">
             {shown.map((s) => (
               <SetRow key={s.key} set={s} />
             ))}
@@ -125,16 +125,16 @@ function SetRow({ set }: { set: Summary }) {
             : 'No parallel list'
   return (
     <li>
-      <Link to={setPath(set)} className="flex min-h-14 items-center justify-between gap-3 py-2 active:bg-slate-900">
+      <Link to={setPath(set)} className="flex min-h-14 items-center justify-between gap-3 py-2 active:bg-ink-900">
         <div className="min-w-0">
           <p className="truncate font-medium">{label(set)}</p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-ink-400">
             {plural(set.parallels, 'parallel')} · {plural(set.cards, 'card')}
             {set.cardpedia?.status === 'done' && ' · Cardpedia'}
             {status && <span className="text-amber-300"> · {status}</span>}
           </p>
         </div>
-        <Icon name="back" size={18} className="shrink-0 rotate-180 text-slate-500" />
+        <Icon name="back" size={18} className="shrink-0 rotate-180 text-ink-500" />
       </Link>
     </li>
   )
@@ -176,7 +176,7 @@ function PrepareSets({ sets }: { sets: Summary[] }) {
     <section className={`${panel} flex flex-col gap-3 p-4`}>
       <div>
         <h2 className="text-lg font-semibold">Get sets ready</h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-400">
           List the sets you’re about to scan or enter, one per line. Baseball sets come from Baseball Cardpedia for
           free; anything it doesn’t have can be looked up with AI (about{' '}
           {formatCost(ai.estimate.parallels(1, model).expected)} a set). Either way, each set is looked up once and
@@ -195,7 +195,7 @@ function PrepareSets({ sets }: { sets: Summary[] }) {
         <button
           type="button"
           onClick={() => setText([...new Set([...text.split('\n').filter((l) => l.trim()), ...missing.map(label)])].join('\n'))}
-          className="self-start text-sm text-sky-400 underline"
+          className="self-start text-sm text-accent-400 underline"
         >
           Add the {plural(missing.length, 'set')} from your cards without a list
         </button>
@@ -204,7 +204,7 @@ function PrepareSets({ sets }: { sets: Summary[] }) {
         <p className="text-xs text-amber-300">Start each line with the year: {bad.slice(0, 3).join('; ')}</p>
       )}
       {typed.length > todo.length && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-500">
           {plural(typed.length - todo.length, 'set')} already {typed.length - todo.length === 1 ? 'has' : 'have'} a list.
         </p>
       )}
@@ -240,7 +240,7 @@ function PrepareSets({ sets }: { sets: Summary[] }) {
         </button>
       )}
       {free.length > 0 && paid.length > 0 && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-500">
           {plural(paid.length, 'other set')} can be looked up with AI afterwards.
         </p>
       )}
@@ -256,7 +256,7 @@ function ImportSummary({ results }: { results: ImportResult[] }) {
   return (
     <div className="flex flex-col gap-1 text-sm">
       {done.length > 0 && (
-        <p className="text-emerald-300">
+        <p className="text-accent-300">
           Got {plural(done.length, 'set')} from Baseball Cardpedia:{' '}
           {plural(done.reduce((n, r) => n + r.parallels, 0), 'parallel')},{' '}
           {plural(done.reduce((n, r) => n + r.cards, 0), 'card')}.
@@ -288,7 +288,7 @@ function FetchStatus({ fetches }: { fetches: ParallelFetch[] }) {
   return (
     <section className={`${panel} flex flex-col gap-2 p-4 text-sm`}>
       {pending.length > 0 && (
-        <p className="text-slate-300">
+        <p className="text-ink-300">
           Looking up {plural(pending.length, 'set')}. Results usually arrive within minutes; this page updates on its
           own.
         </p>
@@ -301,7 +301,7 @@ function FetchStatus({ fetches }: { fetches: ParallelFetch[] }) {
           <button
             type="button"
             onClick={() => forget.mutate(f.id)}
-            className="min-h-11 shrink-0 px-2 font-medium text-slate-300"
+            className="min-h-11 shrink-0 px-2 font-medium text-ink-300"
           >
             Dismiss
           </button>
@@ -329,7 +329,7 @@ function ImportParallels() {
     <section className={`${panel} flex flex-col gap-3 p-4`}>
       <div>
         <h2 className="text-lg font-semibold">Import parallels</h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-400">
           Free alternative to looking sets up: a CSV with columns year, set, insert, parallel, print_run (blank when not
           numbered).
         </p>
@@ -350,7 +350,7 @@ function ImportParallels() {
       {save.error && <p className="text-sm text-red-300">{save.error.message}</p>}
       {result && !save.error && (
         <div className="text-sm">
-          <p className="text-emerald-300">Saved {plural(result.saved, 'parallel')}.</p>
+          <p className="text-accent-300">Saved {plural(result.saved, 'parallel')}.</p>
           {result.errors.slice(0, 5).map((err) => (
             <p key={err} className="text-amber-300">
               {err}

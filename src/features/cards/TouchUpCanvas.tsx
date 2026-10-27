@@ -85,7 +85,7 @@ export function TouchUpCanvas({ pixels, busy, onFill }: TouchUpCanvasProps) {
           />
         </PhotoFrame>
       </div>
-      <label className="flex min-h-11 items-center gap-3 text-sm text-slate-300">
+      <label className="flex min-h-11 items-center gap-3 text-sm text-ink-300">
         Brush
         <input
           type="range"
@@ -93,7 +93,7 @@ export function TouchUpCanvas({ pixels, busy, onFill }: TouchUpCanvasProps) {
           max={60}
           value={brush}
           onChange={(e) => setBrush(Number(e.target.value))}
-          className="flex-1 accent-sky-500"
+          className="flex-1 accent-accent-500"
         />
         <span
           aria-hidden

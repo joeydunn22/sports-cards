@@ -6,7 +6,7 @@ type CropPreviewProps = { url: string; box: Box; width: number; height: number; 
 export function CropPreview({ url, box, width, height, className = '' }: CropPreviewProps) {
   return (
     <div
-      className={`relative overflow-hidden rounded-md bg-slate-800 ${className}`}
+      className={`relative overflow-hidden rounded-md bg-ink-800 ${className}`}
       style={{ aspectRatio: `${box.w * width} / ${box.h * height}` }}
     >
       <img

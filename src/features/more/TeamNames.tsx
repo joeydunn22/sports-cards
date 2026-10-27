@@ -20,17 +20,17 @@ export function TeamNames() {
     <section className={`${panel} flex flex-col gap-3 p-4`}>
       <div>
         <h2 className="text-lg font-semibold">Team names</h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-400">
           Short or old-style team names, spelled out so each team filters as one.
         </p>
       </div>
       <ul className="flex flex-col gap-1 text-sm">
         {fixes.map((fix) => (
           <li key={`${fix.from}\n${fix.to}`} className="flex flex-wrap gap-x-2">
-            <span className="text-slate-400">{fix.from}</span>
+            <span className="text-ink-400">{fix.from}</span>
             <span aria-hidden="true">→</span>
             <span className="font-medium">{fix.to}</span>
-            <span className="text-slate-500">
+            <span className="text-ink-500">
               {fix.ids.length} {fix.ids.length === 1 ? 'card' : 'cards'}
             </span>
           </li>

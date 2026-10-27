@@ -49,7 +49,7 @@ export function FilterPanel({ cards, filters, onChange }: FilterPanelProps) {
     <div className={`${panel} flex flex-col gap-4 p-4`}>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {FILTER_FIELDS.map((field) => (
-          <label key={field} className="flex flex-col gap-1 text-sm font-medium text-slate-300">
+          <label key={field} className="flex flex-col gap-1 text-[13px] font-medium text-ink-400">
             {FIELD_LABELS[field]}
             <select
               value={filters.fields[field] ?? ''}
@@ -80,15 +80,15 @@ export function FilterPanel({ cards, filters, onChange }: FilterPanelProps) {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex rounded-xl bg-slate-950 p-1" role="group" aria-label="Show">
+        <div className="flex rounded-full bg-ink-950 p-1" role="group" aria-label="Show">
           {OWNERSHIP.map(([value, label]) => (
             <button
               key={value}
               type="button"
               aria-pressed={filters.ownership === value}
               onClick={() => onChange({ ...filters, ownership: value })}
-              className={`min-h-10 rounded-lg px-4 text-sm font-medium ${
-                filters.ownership === value ? 'bg-slate-700 text-slate-100' : 'text-slate-400'
+              className={`min-h-10 rounded-full px-4 text-sm font-medium transition-colors ${
+                filters.ownership === value ? 'bg-ink-700 text-ink-50' : 'text-ink-400'
               }`}
             >
               {label}
@@ -98,7 +98,7 @@ export function FilterPanel({ cards, filters, onChange }: FilterPanelProps) {
         <button
           type="button"
           onClick={() => onChange({ ...emptyFilters, search: filters.search })}
-          className="min-h-11 text-sm font-medium text-sky-400 hover:text-sky-300"
+          className="min-h-11 text-sm font-medium text-accent-400 hover:text-accent-300"
         >
           Clear filters
         </button>

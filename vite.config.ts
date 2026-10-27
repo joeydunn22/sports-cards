@@ -43,8 +43,8 @@ export default defineConfig({
         name: 'Sports Cards',
         short_name: 'Cards',
         description: 'My sports card collection',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#0b0b0c',
+        background_color: '#0b0b0c',
         display: 'standalone',
         orientation: 'portrait',
         icons: [

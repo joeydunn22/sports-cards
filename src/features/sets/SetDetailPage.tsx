@@ -61,16 +61,16 @@ export function SetDetailPage() {
 
       <section className={`${panel} flex flex-col gap-3 p-4`}>
         <h2 className="text-lg font-semibold">Parallels</h2>
-        {fetch?.status === 'pending' && <p className="text-sm text-slate-300">Looking up this set’s parallels…</p>}
+        {fetch?.status === 'pending' && <p className="text-sm text-ink-300">Looking up this set’s parallels…</p>}
         {fetch?.status === 'done' && (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-500">
             Looked up {new Date(fetch.updated_at).toLocaleDateString()}
             {fetch.notes ? `: ${fetch.notes}` : '.'}
           </p>
         )}
         {!hasList && fetch?.status !== 'pending' && (
           <div className="flex flex-col gap-1">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-ink-400">
               {parallels.length
                 ? 'Only the parallels of cards you’ve saved are known so far.'
                 : 'No parallels known yet.'}
@@ -89,7 +89,7 @@ export function SetDetailPage() {
         {inserts.map((insert) => (
           <div key={insert} className="flex flex-col gap-1">
             <h3 className={sectionTitle}>{insert || 'Base set'}</h3>
-            <ul className="flex flex-col divide-y divide-slate-800">
+            <ul className="flex flex-col divide-y divide-ink-800">
               {parallelsFor(parallels, { ...set, insert_name: insert }).map((p) => (
                 <ParallelItem key={p.id} parallel={p} />
               ))}
@@ -127,11 +127,11 @@ function CardpediaPanel({ set, found }: { set: SetRef; found: CardpediaImport | 
     <section className={`${panel} flex flex-col gap-2 p-4 text-sm`}>
       <h2 className="text-lg font-semibold">Baseball Cardpedia</h2>
       {!found ? (
-        <p className="text-slate-400">Not looked up yet. Baseball sets are read from there for free.</p>
+        <p className="text-ink-400">Not looked up yet. Baseball sets are read from there for free.</p>
       ) : found.status === 'done' ? (
-        <p className="text-slate-300">
+        <p className="text-ink-300">
           Read from{' '}
-          <a href={pageUrl(found.page ?? '')} target="_blank" rel="noreferrer" className="text-sky-400 underline">
+          <a href={pageUrl(found.page ?? '')} target="_blank" rel="noreferrer" className="text-accent-400 underline">
             {found.page}
           </a>{' '}
           on {new Date(found.updated_at).toLocaleDateString()}: {found.parallels.toLocaleString()} parallels,{' '}
@@ -173,7 +173,7 @@ function CardpediaPanel({ set, found }: { set: SetRef; found: CardpediaImport | 
             {importer.isPending ? 'Reading…' : found ? 'Read again' : 'Get it from Cardpedia (free)'}
           </button>
           {found && (
-            <button type="button" onClick={() => setEditing(true)} className="min-h-11 px-2 text-sm text-sky-400">
+            <button type="button" onClick={() => setEditing(true)} className="min-h-11 px-2 text-sm text-accent-400">
               Use a different page
             </button>
           )}
@@ -202,7 +202,7 @@ function Checklist({ spots }: { spots: ChecklistEntry[] }) {
     <section className={`${panel} flex flex-col gap-3 p-4`}>
       <div>
         <h2 className="text-lg font-semibold">Cards</h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-400">
           Who each card number is. Scans and Add card fill in the player, team and RC from these.
         </p>
       </div>
@@ -217,14 +217,14 @@ function Checklist({ spots }: { spots: ChecklistEntry[] }) {
         />
       )}
       {spots.length === 0 ? (
-        <p className="text-sm text-slate-400">None yet.</p>
+        <p className="text-sm text-ink-400">None yet.</p>
       ) : shown.length === 0 ? (
-        <p className="text-sm text-slate-400">No card matches.</p>
+        <p className="text-sm text-ink-400">No card matches.</p>
       ) : (
         inserts.map((insert) => (
           <div key={insert} className="flex flex-col gap-1">
             <h3 className={sectionTitle}>{insert || 'Base set'}</h3>
-            <ul className="flex flex-col divide-y divide-slate-800">
+            <ul className="flex flex-col divide-y divide-ink-800">
               {shown
                 .slice(0, MAX_SPOTS)
                 .filter((s) => s.insert_name === insert)
@@ -236,7 +236,7 @@ function Checklist({ spots }: { spots: ChecklistEntry[] }) {
         ))
       )}
       {shown.length > MAX_SPOTS && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-500">
           Showing {MAX_SPOTS} of {shown.length.toLocaleString()}. Search to find the rest.
         </p>
       )}
@@ -269,7 +269,7 @@ function ParallelItem({ parallel }: { parallel: ParallelRow }) {
             autoCapitalize="words"
             className={`${inputClass} min-w-0 flex-[2]`}
           />
-          <span className="text-slate-500">/</span>
+          <span className="text-ink-500">/</span>
           <input
             value={run}
             onChange={(e) => setRun(e.target.value)}
@@ -281,7 +281,7 @@ function ParallelItem({ parallel }: { parallel: ParallelRow }) {
           <button type="submit" className={`${buttonPrimary} min-h-11`}>
             Save
           </button>
-          <button type="button" onClick={() => setEditing(false)} className="min-h-11 px-2 text-sm text-slate-400">
+          <button type="button" onClick={() => setEditing(false)} className="min-h-11 px-2 text-sm text-ink-400">
             Cancel
           </button>
         </form>
@@ -292,8 +292,8 @@ function ParallelItem({ parallel }: { parallel: ParallelRow }) {
     <li className="flex min-h-12 items-center justify-between gap-2 py-1">
       <button type="button" onClick={() => setEditing(true)} className="min-h-11 min-w-0 flex-1 text-left">
         <span className="font-medium">{parallel.parallel}</span>{' '}
-        <span className="text-slate-300">{numbered(parallel.print_run)}</span>
-        <span className="block text-xs text-slate-500">from {SOURCE[parallel.source] ?? parallel.source}</span>
+        <span className="text-ink-300">{numbered(parallel.print_run)}</span>
+        <span className="block text-xs text-ink-500">from {SOURCE[parallel.source] ?? parallel.source}</span>
       </button>
       <button
         type="button"
@@ -326,13 +326,13 @@ function AddParallel({ set, inserts }: { set: { year: string; set_name: string }
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="min-h-11 self-start text-sm text-sky-400">
+      <button type="button" onClick={() => setOpen(true)} className="min-h-11 self-start text-sm text-accent-400">
         + Add a parallel
       </button>
     )
   }
   return (
-    <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-2 border-t border-slate-800 pt-3">
+    <form onSubmit={(e) => void submit(e)} className="flex flex-col gap-2 border-t border-ink-800 pt-3">
       <datalist id="set-inserts">
         {inserts.filter(Boolean).map((i) => (
           <option key={i} value={i} />
@@ -356,7 +356,7 @@ function AddParallel({ set, inserts }: { set: { year: string; set_name: string }
           autoCapitalize="words"
           className={`${inputClass} min-w-0 flex-[2]`}
         />
-        <span className="text-slate-500">/</span>
+        <span className="text-ink-500">/</span>
         <input
           value={run}
           onChange={(e) => setRun(e.target.value)}
@@ -371,7 +371,7 @@ function AddParallel({ set, inserts }: { set: { year: string; set_name: string }
         <button type="submit" disabled={save.isPending || !name.trim()} className={`${buttonPrimary} min-h-11`}>
           Add
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="min-h-11 px-2 text-sm text-slate-400">
+        <button type="button" onClick={() => setOpen(false)} className="min-h-11 px-2 text-sm text-ink-400">
           Done
         </button>
       </div>
@@ -386,10 +386,10 @@ function SpotItem({ spot }: { spot: ChecklistEntry }) {
     <li className="flex min-h-12 items-center justify-between gap-2 py-1">
       <div className="min-w-0">
         <p className="truncate">
-          <span className="text-slate-400">#{spot.card_number}</span> <span className="font-medium">{spot.player}</span>
-          {spot.is_rookie && <span className="text-xs text-sky-300"> RC</span>}
+          <span className="text-ink-400">#{spot.card_number}</span> <span className="font-medium">{spot.player}</span>
+          {spot.is_rookie && <span className="text-xs text-accent-300"> RC</span>}
         </p>
-        <p className="truncate text-xs text-slate-500">
+        <p className="truncate text-xs text-ink-500">
           {spot.team ? `${spot.team} · ` : ''}from {SOURCE[spot.source] ?? spot.source}
         </p>
       </div>

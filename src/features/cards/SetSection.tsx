@@ -4,9 +4,9 @@ import { panel, sectionTitle } from '../../components/ui'
 import type { SetStatus } from '../sets/useSetHelp'
 
 const STATUS_COLOR: Record<SetStatus['kind'], string> = {
-  looking: 'text-slate-400',
-  known: 'text-emerald-300',
-  empty: 'text-slate-500',
+  looking: 'text-ink-400',
+  known: 'text-accent-300',
+  empty: 'text-ink-500',
   not_found: 'text-amber-300',
   failed: 'text-amber-300',
 }
@@ -37,13 +37,13 @@ export function SetSection({ open, summary, onOpen, status, children }: SetSecti
       <section className={`${panel} flex items-center gap-3 px-4 py-3`}>
         <div className="min-w-0 flex-1">
           <h2 className={sectionTitle}>Set</h2>
-          <p className="truncate font-medium text-slate-100">{summary}</p>
+          <p className="truncate font-medium text-ink-100">{summary}</p>
           <SetStatusLine status={status} />
         </div>
         <button
           type="button"
           onClick={onOpen}
-          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-sky-300 active:bg-slate-800"
+          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-accent-400 active:bg-ink-800"
         >
           <Icon name="edit" size={16} /> Change
         </button>

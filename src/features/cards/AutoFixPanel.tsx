@@ -33,14 +33,14 @@ export function AutoFixPanel({ pixels, original, changes, busy, onAuto }: AutoFi
         <PhotoFrame pixels={shown} maxHeight="52dvh">
           <canvas ref={canvasRef} className="block size-full rounded-md" />
           {edited && (
-            <span className="pointer-events-none absolute top-1.5 left-1.5 rounded-md bg-slate-950/80 px-1.5 py-0.5 text-[11px] font-semibold text-slate-200">
+            <span className="pointer-events-none absolute top-1.5 left-1.5 rounded-md bg-ink-950/80 px-1.5 py-0.5 text-[11px] font-semibold text-ink-200">
               {comparing ? 'Original' : 'Edited'}
             </span>
           )}
           {busy && (
-            <div className="absolute inset-0 grid place-items-center rounded-md bg-slate-950/50">
-              <span className="flex items-center gap-2 rounded-full bg-slate-950/90 px-4 py-2 text-sm font-medium">
-                <span className="size-4 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+            <div className="absolute inset-0 grid place-items-center rounded-md bg-ink-950/50">
+              <span className="flex items-center gap-2 rounded-full bg-ink-950/90 px-4 py-2 text-sm font-medium">
+                <span className="size-4 animate-spin rounded-full border-2 border-accent-400 border-t-transparent" />
                 Fixing…
               </span>
             </div>
@@ -48,7 +48,7 @@ export function AutoFixPanel({ pixels, original, changes, busy, onAuto }: AutoFi
         </PhotoFrame>
       </div>
       {changes && (
-        <p className={`mb-2 flex items-center gap-1.5 text-sm ${fixed ? 'text-emerald-300' : 'text-slate-400'}`}>
+        <p className={`mb-2 flex items-center gap-1.5 text-sm ${fixed ? 'text-accent-300' : 'text-ink-400'}`}>
           {fixed && <Icon name="check" size={16} className="shrink-0" />}
           {fixed ? changes.map((c) => CHANGE_LABELS[c]).join(' · ') : 'Nothing to fix: this photo already looks good.'}
         </p>
@@ -76,7 +76,7 @@ export function AutoFixPanel({ pixels, original, changes, busy, onAuto }: AutoFi
         )}
       </div>
       {!changes && (
-        <p className="mt-2 text-center text-xs text-slate-500">Crops to the card, fills glare and fixes the lighting in one tap.</p>
+        <p className="mt-2 text-center text-xs text-ink-500">Crops to the card, fills glare and fixes the lighting in one tap.</p>
       )}
     </>
   )

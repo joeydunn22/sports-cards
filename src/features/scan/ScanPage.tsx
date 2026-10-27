@@ -60,8 +60,8 @@ export function ScanPage() {
       </Link>
 
       {processing > 0 && (
-        <p className="flex items-center gap-2 rounded-xl bg-sky-950/60 px-3 py-2 text-sm text-sky-200">
-          <span className="size-2 shrink-0 animate-pulse rounded-full bg-sky-400" />
+        <p className="flex items-center gap-2 rounded-xl bg-accent-950/60 px-3 py-2 text-sm text-accent-200">
+          <span className="size-2 shrink-0 animate-pulse rounded-full bg-accent-400" />
           The AI is working on {processing} {processing === 1 ? 'card' : 'cards'}. Usually a few minutes; this page
           updates by itself.
         </p>
@@ -91,18 +91,18 @@ export function ScanPage() {
       <section className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-semibold">Inbox</h2>
-          {scans.length > 0 && <span className="text-sm text-slate-400">{scans.length} to review</span>}
+          {scans.length > 0 && <span className="text-sm text-ink-400">{scans.length} to review</span>}
         </div>
 
         {isPending ? (
-          <p className="text-sm text-slate-400">Loading…</p>
+          <p className="text-sm text-ink-400">Loading…</p>
         ) : error ? (
           <p className="rounded-xl bg-red-950/50 p-3 text-sm text-red-300">Couldn’t load the inbox: {error.message}</p>
         ) : scans.length === 0 ? (
           <div className={`${panel} flex flex-col items-center gap-2 px-6 py-8 text-center`}>
-            <Icon name="inbox" size={28} className="text-slate-500" />
-            <p className="text-slate-300">Nothing waiting</p>
-            <p className="text-sm text-slate-500">
+            <Icon name="inbox" size={28} className="text-ink-500" />
+            <p className="text-ink-300">Nothing waiting</p>
+            <p className="text-sm text-ink-500">
               Photograph a few cards at a time, fronts then backs. Each card lands here for you to check and save.
             </p>
           </div>
@@ -121,10 +121,10 @@ export function ScanPage() {
               return (
                 <div key={id} className="flex flex-col gap-2">
                   <div className="flex items-baseline justify-between">
-                    <h3 className="text-sm font-semibold text-slate-300">{title}</h3>
-                    <span className="text-sm text-slate-500">{items.length}</span>
+                    <h3 className="text-sm font-semibold text-ink-300">{title}</h3>
+                    <span className="text-sm text-ink-500">{items.length}</span>
                   </div>
-                  {hint && <p className="-mt-1 text-xs text-slate-500">{hint}</p>}
+                  {hint && <p className="-mt-1 text-xs text-ink-500">{hint}</p>}
                   <ul className="flex flex-col gap-2">
                     {items.map((scan) => (
                       <li key={scan.id}>
@@ -152,29 +152,29 @@ function ScanRow({ scan, section }: { scan: CardScan; section: InboxSection }) {
       : section === 'reading'
         ? {
             text: scan.status === 'looking_up' ? 'Checking the set’s checklist…' : 'Reading…',
-            className: 'text-sky-300',
+            className: 'text-accent-300',
           }
         : section === 'unread'
-          ? { text: 'Not read by the AI yet', className: 'text-slate-400' }
+          ? { text: 'Not read by the AI yet', className: 'text-ink-400' }
           : read?.lookup?.fields
             ? {
                 text: read.lookup.cached ? 'Matched your card database' : 'Checked against the checklist',
-                className: 'text-emerald-300',
+                className: 'text-accent-300',
               }
             : null
   return (
     <Link
       to={`/scan/${scan.id}`}
-      className="flex min-h-20 items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-2.5 pr-3 active:bg-slate-800"
+      className="flex min-h-20 items-center gap-3 rounded-2xl bg-ink-900 p-2.5 pr-3 ring-1 ring-white/[0.04] active:bg-ink-800"
     >
       <CardThumb path={scan.front_image_path} />
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold">{title || 'Unknown card'}</p>
-        {detail && <p className="truncate text-sm text-slate-400">{detail}</p>}
+        {detail && <p className="truncate text-sm text-ink-400">{detail}</p>}
         {status && <p className={`truncate text-sm ${status.className}`}>{status.text}</p>}
-        {!scan.back_image_path && <p className="text-xs text-slate-500">No back photo</p>}
+        {!scan.back_image_path && <p className="text-xs text-ink-500">No back photo</p>}
       </div>
-      <Icon name="back" size={18} className="rotate-180 text-slate-500" />
+      <Icon name="back" size={18} className="rotate-180 text-ink-500" />
     </Link>
   )
 }

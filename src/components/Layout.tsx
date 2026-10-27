@@ -1,10 +1,11 @@
 import { NavLink, Outlet, useLocation } from 'react-router'
 import { Icon, type IconName } from './Icon'
 
+/** Scan and Add sit side by side: they're the two ways cards get in. */
 const TABS: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: '/', label: 'Collection', icon: 'cards', end: true },
-  { to: '/cards/new', label: 'Add', icon: 'plus', end: true },
   { to: '/scan', label: 'Scan', icon: 'camera' },
+  { to: '/cards/new', label: 'Add', icon: 'plus', end: true },
   { to: '/more', label: 'More', icon: 'more' },
 ]
 
@@ -20,11 +21,11 @@ export function Layout() {
   return (
     <div className="min-h-dvh">
       {/* Desktop: top navigation */}
-      <header className="sticky top-0 z-20 hidden border-b border-slate-800 bg-slate-950/90 backdrop-blur md:block">
+      <header className="sticky top-0 z-20 hidden border-b border-white/[0.05] bg-ink-950/80 backdrop-blur-xl md:block">
         <nav className="mx-auto flex max-w-6xl items-center gap-1 px-4">
-          <NavLink to="/" end className="mr-auto flex min-h-14 items-center gap-2 font-semibold text-slate-100">
-            <span className="grid size-8 place-items-center rounded-lg bg-sky-500 text-slate-950">
-              <Icon name="cards" size={18} />
+          <NavLink to="/" end className="mr-auto flex min-h-14 items-center gap-2.5 font-semibold tracking-tight text-ink-50">
+            <span className="grid size-7 place-items-center rounded-lg bg-accent-400 text-ink-950">
+              <Icon name="cards" size={16} strokeWidth={2.2} />
             </span>
             Sports Cards
           </NavLink>
@@ -34,29 +35,30 @@ export function Layout() {
               to={tab.to}
               end={tab.end}
               className={({ isActive }) =>
-                `flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm ${
-                  isActive ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-100'
+                `flex min-h-9 items-center gap-2 rounded-full px-3.5 text-sm font-medium transition-colors ${
+                  isActive ? 'bg-ink-800 text-ink-50' : 'text-ink-400 hover:text-ink-100'
                 }`
               }
             >
-              <Icon name={tab.icon} size={18} />
+              <Icon name={tab.icon} size={17} />
               {tab.label}
             </NavLink>
           ))}
         </nav>
       </header>
 
-      <div className={showTabs ? 'pb-24 md:pb-0' : ''}>
+      {/* key: each page fades in when the route changes */}
+      <div key={pathname} className={`animate-page-in ${showTabs ? 'pb-32 md:pb-0' : ''}`}>
         <Outlet />
       </div>
 
-      {/* Phone: bottom tab bar */}
+      {/* Phone: a floating tab bar */}
       {showTabs && (
         <nav
           aria-label="Main"
-          className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden"
         >
-          <div className="grid grid-cols-4">
+          <div className="pointer-events-auto mx-auto grid max-w-md grid-cols-4 rounded-[28px] bg-ink-900/85 p-1.5 shadow-[0_10px_40px_-8px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.07] backdrop-blur-xl">
             {TABS.map((tab) => (
               <NavLink
                 key={tab.to}
@@ -64,19 +66,23 @@ export function Layout() {
                 end={tab.end}
                 aria-label={tab.label}
                 className={({ isActive }) =>
-                  `flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
-                    isActive ? 'text-sky-400' : 'text-slate-500 active:text-slate-300'
+                  `relative flex min-h-13 flex-col items-center justify-center gap-0.5 rounded-[22px] text-[10.5px] font-medium tracking-wide transition-colors ${
+                    isActive ? 'text-accent-400' : 'text-ink-500 active:text-ink-300'
                   }`
                 }
               >
-                {tab.to === '/cards/new' ? (
-                  <span className="grid size-9 place-items-center rounded-full bg-sky-500 text-slate-950">
-                    <Icon name="plus" size={22} strokeWidth={2.4} />
-                  </span>
-                ) : (
-                  <Icon name={tab.icon} size={24} />
-                )}
-                {tab.to !== '/cards/new' && tab.label}
+                {({ isActive }) =>
+                  tab.to === '/cards/new' ? (
+                    <span className="grid size-10 place-items-center rounded-full bg-accent-400 text-ink-950 shadow-[0_0_24px_-4px] shadow-accent-400/50 active:scale-95">
+                      <Icon name="plus" size={22} strokeWidth={2.4} />
+                    </span>
+                  ) : (
+                    <>
+                      <Icon name={tab.icon} size={22} strokeWidth={isActive ? 2.2 : 1.8} />
+                      {tab.label}
+                    </>
+                  )
+                }
               </NavLink>
             ))}
           </div>

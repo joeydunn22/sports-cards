@@ -1,8 +1,8 @@
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Icon } from '../../components/Icon'
 import { PageHeader } from '../../components/PageHeader'
-import { useState } from 'react'
-import { buttonPrimary, buttonSecondary, panel } from '../../components/ui'
+import { buttonPrimary, buttonSecondary, listGroup, listRow, panel, sectionTitle } from '../../components/ui'
 import { signOut, useAuth } from '../../hooks/useAuth'
 import {
   BIOMETRIC,
@@ -22,33 +22,62 @@ import { TeamNames } from './TeamNames'
 export function MorePage() {
   const { session } = useAuth()
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-4 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 md:pt-6">
+    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 md:pt-8">
       <PageHeader title="More" />
 
-      <TeamNames />
-
-      <ImportExportSections />
-
-      <AiModelSetting />
-
-      <AiCreditSetting />
-
-      <CardDatabase />
-
-      <PhotoTouchUp />
-
-      <PasskeySetting />
-
-      <section className={`${panel} flex items-center justify-between gap-3 p-4`}>
-        <div className="min-w-0">
-          <p className="text-sm text-slate-400">Signed in as</p>
-          <p className="truncate font-medium">{session?.user.email}</p>
+      <Group title="Library">
+        <div className={listGroup}>
+          <CardDatabase />
+          <PhotoTouchUp />
         </div>
-        <button type="button" onClick={() => signOut()} className={`${buttonSecondary} shrink-0`}>
-          <Icon name="logout" size={18} /> Sign out
-        </button>
-      </section>
+        <TeamNames />
+      </Group>
+
+      <Group title="Data">
+        <ImportExportSections />
+      </Group>
+
+      <Group title="Scanning">
+        <AiModelSetting />
+        <AiCreditSetting />
+      </Group>
+
+      <Group title="Account">
+        <PasskeySetting />
+        <section className={`${panel} flex items-center justify-between gap-3 p-4`}>
+          <div className="min-w-0">
+            <p className="text-sm text-ink-400">Signed in as</p>
+            <p className="truncate font-medium">{session?.user.email}</p>
+          </div>
+          <button type="button" onClick={() => signOut()} className={`${buttonSecondary} shrink-0`}>
+            <Icon name="logout" size={18} /> Sign out
+          </button>
+        </section>
+      </Group>
     </main>
+  )
+}
+
+/** A titled group of settings, like the sections of the iPhone's Settings app. */
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3" aria-label={title}>
+      <h2 className={`${sectionTitle} px-1`}>{title}</h2>
+      {children}
+    </section>
+  )
+}
+
+/** One tappable row in a list group: a title, a line of detail and a chevron. */
+function LinkRow({ to, title, detail }: { to: string; title: string; detail: string }) {
+  return (
+    <Link to={to} className={listRow}>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">{title}</p>
+        <p className="text-sm text-ink-400">{detail}</p>
+      </div>
+      <Icon name="back" size={18} className="shrink-0 rotate-180 text-ink-600" />
+    </Link>
   )
 }
 
@@ -58,14 +87,14 @@ function AiModelSetting() {
     <section className={`${panel} flex flex-col gap-3 p-4`}>
       <div>
         <h2 className="text-lg font-semibold">Card scanning</h2>
-        <p className="text-sm text-slate-400">Which AI model reads your scanned cards.</p>
+        <p className="text-sm text-ink-400">Which AI model reads your scanned cards.</p>
       </div>
       <div className="flex flex-col gap-2" role="radiogroup" aria-label="AI model">
         {AI_MODELS.map((m) => (
           <label
             key={m.id}
             className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-3 ${
-              model === m.id ? 'border-sky-500 bg-sky-500/10' : 'border-slate-800'
+              model === m.id ? 'border-accent-400/70 bg-accent-400/10' : 'border-ink-800'
             }`}
           >
             <input
@@ -77,10 +106,10 @@ function AiModelSetting() {
                 setModel(m.id)
                 setAiModel(m.id)
               }}
-              className="accent-sky-500"
+              className="accent-accent-400"
             />
             <span className="font-medium">{m.label}</span>
-            <span className="text-sm text-slate-400">{m.note}</span>
+            <span className="text-sm text-ink-400">{m.note}</span>
           </label>
         ))}
       </div>
@@ -97,17 +126,17 @@ function PasskeySetting() {
     <section className={`${panel} flex flex-col gap-3 p-4`}>
       <div>
         <h2 className="text-lg font-semibold">{BIOMETRIC === 'a passkey' ? 'Passkey' : BIOMETRIC} sign-in</h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-ink-400">
           Sign in with {BIOMETRIC} instead of typing your password. The key stays on your device; only you can use it.
         </p>
       </div>
       {passkeys && passkeys.length > 0 && (
         <ul className="flex flex-col gap-2">
           {passkeys.map((key) => (
-            <li key={key.id} className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-slate-800 px-3">
+            <li key={key.id} className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-ink-800 px-3">
               <div className="min-w-0">
                 <p className="truncate font-medium">{key.friendly_name || 'Passkey'}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-ink-500">
                   Added {new Date(key.created_at).toLocaleDateString()}
                   {key.last_used_at && ` · last used ${new Date(key.last_used_at).toLocaleDateString()}`}
                 </p>
@@ -139,7 +168,7 @@ function PasskeySetting() {
           {add.isPending ? 'Waiting for ' + BIOMETRIC + '…' : `Set up ${BIOMETRIC} on this device`}
         </button>
       ) : (
-        <p className="text-sm text-slate-500">This browser doesn’t support passkeys.</p>
+        <p className="text-sm text-ink-500">This browser doesn’t support passkeys.</p>
       )}
     </section>
   )
@@ -150,17 +179,15 @@ function PhotoTouchUp() {
   const { data: cards = NO_CARDS } = useCards()
   const left = touchUpQueue(cards).length
   return (
-    <Link to="/photos/touch-up" className={`${panel} flex items-center justify-between gap-3 p-4 active:bg-slate-900`}>
-      <div className="min-w-0">
-        <h2 className="text-lg font-semibold">Touch up photos</h2>
-        <p className="text-sm text-slate-400">
-          {left
-            ? `${left} ${left === 1 ? 'card' : 'cards'} to go. Crops to the card, fills glare and fixes the lighting; you see before and after.`
-            : 'All photos checked. Crops to the card, fills glare and fixes the lighting.'}
-        </p>
-      </div>
-      <Icon name="back" size={18} className="shrink-0 rotate-180 text-slate-500" />
-    </Link>
+    <LinkRow
+      to="/photos/touch-up"
+      title="Touch up photos"
+      detail={
+        left
+          ? `${left} ${left === 1 ? 'card' : 'cards'} to go. Crops to the card, fills glare and fixes the lighting; you see before and after.`
+          : 'All photos checked. Crops to the card, fills glare and fixes the lighting.'
+      }
+    />
   )
 }
 
@@ -171,16 +198,11 @@ function CardDatabase() {
   const parallels = known.reduce((n, s) => n + s.parallels, 0)
   const cards = known.reduce((n, s) => n + s.cards, 0)
   return (
-    <Link to="/sets" className={`${panel} flex items-center justify-between gap-3 p-4 active:bg-slate-900`}>
-      <div className="min-w-0">
-        <h2 className="text-lg font-semibold">Sets</h2>
-        <p className="text-sm text-slate-400">
-          {sets} {sets === 1 ? 'set' : 'sets'} known: {parallels.toLocaleString()} parallels, {cards.toLocaleString()} cards. Get sets
-          ready before scanning, and fix anything wrong.
-        </p>
-      </div>
-      <Icon name="back" size={18} className="shrink-0 rotate-180 text-slate-500" />
-    </Link>
+    <LinkRow
+      to="/sets"
+      title="Sets"
+      detail={`${sets} ${sets === 1 ? 'set' : 'sets'} known: ${parallels.toLocaleString()} parallels, ${cards.toLocaleString()} cards. Get sets ready before scanning, and fix anything wrong.`}
+    />
   )
 }
 

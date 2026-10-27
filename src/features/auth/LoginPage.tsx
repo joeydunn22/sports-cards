@@ -51,12 +51,12 @@ export function LoginPage() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-8 px-4">
       <div className="flex flex-col items-center gap-3 text-center">
-        <span className="grid size-16 place-items-center rounded-2xl bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/20">
+        <span className="grid size-16 place-items-center rounded-2xl bg-accent-500 text-ink-950 shadow-lg shadow-accent-500/20">
           <Icon name="cards" size={32} />
         </span>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Sports Cards</h1>
-          <p className="text-sm text-slate-400">Sign in to your collection</p>
+          <p className="text-sm text-ink-400">Sign in to your collection</p>
         </div>
       </div>
 

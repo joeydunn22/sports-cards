@@ -67,7 +67,7 @@ export function PhotoStep({ photos, onChange }: PhotoStepProps) {
               {boxes.map((box, i) => (
                 <div
                   key={i}
-                  className="absolute rounded-md border-2 border-sky-400 bg-sky-400/10"
+                  className="absolute rounded-md border-2 border-accent-400 bg-accent-400/10"
                   style={{
                     left: `${box.x * 100}%`,
                     top: `${box.y * 100}%`,
@@ -75,7 +75,7 @@ export function PhotoStep({ photos, onChange }: PhotoStepProps) {
                     height: `${box.h * 100}%`,
                   }}
                 >
-                  <span className="absolute top-1 left-1 grid size-6 place-items-center rounded-full bg-sky-500 text-xs font-bold text-slate-950">
+                  <span className="absolute top-1 left-1 grid size-6 place-items-center rounded-full bg-accent-500 text-xs font-bold text-ink-950">
                     {first + i + 1}
                   </span>
                 </div>
@@ -84,7 +84,7 @@ export function PhotoStep({ photos, onChange }: PhotoStepProps) {
                 type="button"
                 onClick={() => remove(photo.id)}
                 aria-label="Remove photo"
-                className="absolute top-2 right-2 grid size-11 place-items-center rounded-full bg-slate-950/80 text-slate-200"
+                className="absolute top-2 right-2 grid size-11 place-items-center rounded-full bg-ink-950/80 text-ink-200"
               >
                 <Icon name="close" size={20} />
               </button>
@@ -142,7 +142,7 @@ function LayoutChip({ active, onClick, children }: { active: boolean; onClick: (
       aria-pressed={active}
       onClick={onClick}
       className={`min-h-11 min-w-11 rounded-full border px-3 text-sm font-medium ${
-        active ? 'border-sky-400 bg-sky-500 text-slate-950' : 'border-slate-700 bg-slate-900 text-slate-300'
+        active ? 'border-accent-400 bg-accent-500 text-ink-950' : 'border-ink-700 bg-ink-900 text-ink-300'
       }`}
     >
       {children}
